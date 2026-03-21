@@ -633,8 +633,18 @@ function renderAddModal() {
             <span style="font-size:13px;color:var(--text-dim);font-weight:600;">min</span>
         </div>
       </div>
-      <div class="form-group"><label class="form-label">Visibility</label>
+      <div class="form-group" id="visibilitySection" style="display:${addForm.assignedGroup ? "none" : "block"}"><label class="form-label">Visibility</label>
         <div class="chip-row">${MODES.map((m) => `<button class="chip${addForm.mode === m.id ? " active" : ""}" data-mode="${m.id}">${m.icon} ${m.label}</button>`).join("")}</div></div>
+      <div class="form-group" id="visibilityLocked" style="display:${addForm.assignedGroup ? "block" : "none"}"><label class="form-label">Visibility</label>
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--card);border-radius:10px;border:1px solid rgba(255,255,255,0.07);">
+          <span style="font-size:18px;">👥</span>
+          <div style="flex:1;">
+            <div style="font-size:13px;font-weight:600;color:var(--text);">Visible to all group members</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Group tasks are always shared with the group</div>
+          </div>
+          <span style="font-size:16px;opacity:0.5;">🔒</span>
+        </div>
+      </div>
       ${
           groupCodes.length > 0
               ? `<div class="form-group"><label class="form-label">📌 Add to Group</label>
@@ -694,6 +704,14 @@ function renderAddModal() {
                     .querySelectorAll("[data-grp]")
                     .forEach((x) => x.classList.remove("active"));
                 b.classList.add("active");
+                // Toggle visibility: group tasks are always visible to members
+                const hasGroup = !!addForm.assignedGroup;
+                const visSection = sheet.querySelector("#visibilitySection");
+                const visLocked = sheet.querySelector("#visibilityLocked");
+                if (visSection)
+                    visSection.style.display = hasGroup ? "none" : "block";
+                if (visLocked)
+                    visLocked.style.display = hasGroup ? "block" : "none";
             }),
         );
 
@@ -845,7 +863,7 @@ function saveNewTask() {
         completedAt: 0,
         createdAt: now,
         category: addForm.category,
-        competitionMode: addForm.mode,
+        competitionMode: addForm.assignedGroup ? "group" : addForm.mode,
         flagged: false,
         flagReason: "",
         assignedGroup: addForm.assignedGroup || "",

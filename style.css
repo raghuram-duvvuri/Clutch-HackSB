@@ -1603,3 +1603,110 @@ textarea.input-field {
         border-right: 1px solid var(--border);
     }
 }
+
+/* ============================================
+   INSTANT TASK & START/END TIMER
+   ============================================ */
+
+/* Instant chip gets a special glow */
+.chip.chip-instant {
+    border-color: rgba(0, 245, 212, 0.3);
+    color: var(--neon);
+}
+.chip.chip-instant.active {
+    background: rgba(0, 245, 212, 0.15);
+    border-color: var(--neon);
+    box-shadow: 0 0 10px rgba(0, 245, 212, 0.25);
+}
+
+/* Instant banner inside expanded task card */
+.instant-banner {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin-bottom: 10px;
+    text-align: center;
+    letter-spacing: 0.3px;
+}
+.instant-banner.instant-active {
+    color: var(--neon);
+    background: rgba(0, 245, 212, 0.08);
+    border-color: rgba(0, 245, 212, 0.35);
+    animation: instant-pulse 1.4s ease-in-out infinite;
+}
+@keyframes instant-pulse {
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 rgba(0, 245, 212, 0);
+    }
+    50% {
+        box-shadow: 0 0 0 5px rgba(0, 245, 212, 0.15);
+    }
+}
+
+/* Start Task button */
+.btn-start {
+    flex: 1;
+    padding: 10px 0;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+    color: #fff;
+    font-family: var(--font);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.3px;
+    transition: opacity 0.15s;
+}
+.btn-start:active {
+    opacity: 0.8;
+}
+
+/* In-progress timer display */
+.timer-display {
+    background: rgba(108, 92, 231, 0.08);
+    border: 1px solid rgba(108, 92, 231, 0.25);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+}
+.timer-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+}
+.timer-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+.timer-clock {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent-light);
+}
+.timer-track {
+    height: 5px;
+    background: rgba(255, 255, 255, 0.07);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 4px;
+}
+.timer-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--neon));
+    border-radius: 3px;
+    transition: width 1s linear;
+}
+
+/* End Task button — dimmed when not on track */
+.btn-complete-dim {
+    opacity: 0.5;
+}

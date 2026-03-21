@@ -67,6 +67,7 @@ const MODES = [
     { id: "global", label: "Global", icon: "🌐" },
 ];
 const TIME_OPTIONS = [
+    { l: "⚡ Instant", v: 0 },
     { l: "15m", v: 15 },
     { l: "30m", v: 30 },
     { l: "1h", v: 60 },
@@ -270,6 +271,25 @@ function localDifficulty(title, desc, timeMins) {
 }
 
 function checkCheat(task, completionMins) {
+    // Instant tasks are never flagged — they're designed to be done immediately
+    if (task.isInstant) return { suspicious: false, reason: "Instant task" };
+
+    // For timed tasks that were started, check against actual elapsed time
+    if (task.startedAt && task.timeFrameMinutes > 0) {
+        const elapsedMins = (Date.now() - task.startedAt) / 60000;
+        const expected = task.timeFrameMinutes;
+        const ratio = elapsedMins / expected;
+        // Must be at least 70% of the estimated duration
+        if (ratio < 0.7) {
+            return {
+                suspicious: true,
+                reason: `Ended after ${Math.round(elapsedMins)}m but estimated ${expected}m — too fast`,
+            };
+        }
+        return { suspicious: false, reason: "Duration looks good" };
+    }
+
+    // Fallback: old ratio check for tasks without start tracking
     const ratio = completionMins / Math.max(1, task.timeFrameMinutes);
     const suspicious =
         (task.difficulty >= 7 && ratio < 0.1) ||
@@ -465,7 +485,7 @@ function renderTasks() {
       <div class="task-expanded">
         ${t.description ? `<div class="task-desc">${esc(t.description)}</div>` : ""}
         <div class="task-detail-meta">
-          <span>⏱ ${t.timeFrameMinutes >= 60 ? Math.floor(t.timeFrameMinutes / 60) + "h" + (t.timeFrameMinutes % 60 ? " " + (t.timeFrameMinutes % 60) + "m" : "") : t.timeFrameMinutes + "min"}</span>
+          <span>⏱ ${t.isInstant ? "⚡ Instant" : t.timeFrameMinutes >= 60 ? Math.floor(t.timeFrameMinutes / 60) + "h" + (t.timeFrameMinutes % 60 ? " " + (t.timeFrameMinutes % 60) + "m" : "") : t.timeFrameMinutes + "min"}</span>
           <span>📊 ${diffLabel(t.difficulty)}</span>
           <span>${MODES.find((m) => m.id === t.competitionMode)?.icon || "🔒"} ${MODES.find((m) => m.id === t.competitionMode)?.label || "Private"}</span>
           ${t.assignedGroup ? `<span class="task-group-badge">👥 <span class="grp-tag-${t.assignedGroup}">${t.assignedGroup}</span></span>` : ""}
@@ -473,11 +493,64 @@ function renderTasks() {
         ${t.flagged ? `<div class="flag-warning">⚠️ ${t.flagReason || "Flagged for review"} — No points awarded</div>` : ""}
         ${
             !t.completed
-                ? `
-        <div class="task-actions">
-          <button class="btn-complete" onclick="event.stopPropagation();completeTask('${t.id}')">✓ Complete</button>
-          <button class="btn-delete" onclick="event.stopPropagation();deleteTask('${t.id}')">🗑 Delete</button>
-        </div>`
+                ? (() => {
+                      if (t.isInstant) {
+                          const diff = t.deadline - Date.now();
+                          const absDiff = Math.abs(diff);
+                          const inWindow = absDiff <= 5 * 60 * 1000;
+                          const minsUntil = Math.round(diff / 60000);
+                          return `<div class="instant-banner${inWindow ? " instant-active" : ""}">
+                            ${
+                                inWindow
+                                    ? `⚡ In window — complete now!`
+                                    : diff > 0
+                                      ? `⚡ Instant — opens in ${minsUntil}m`
+                                      : `⚡ Instant — window closed ${Math.abs(minsUntil)}m ago`
+                            }
+                        </div>
+                        <div class="task-actions">
+                          <button class="btn-complete" onclick="event.stopPropagation();completeTask('${t.id}')">✓ Complete</button>
+                          <button class="btn-delete" onclick="event.stopPropagation();deleteTask('${t.id}')">🗑 Delete</button>
+                        </div>`;
+                      } else if (t.timeFrameMinutes > 0) {
+                          if (!t.startedAt) {
+                              return `<div class="task-actions">
+                              <button class="btn-start" onclick="event.stopPropagation();startTask('${t.id}')">▶ Start Task</button>
+                              <button class="btn-delete" onclick="event.stopPropagation();deleteTask('${t.id}')">🗑 Delete</button>
+                            </div>`;
+                          } else {
+                              const elapsedMs = Date.now() - t.startedAt;
+                              const elapsedMins = Math.floor(elapsedMs / 60000);
+                              const elapsedSecs = Math.floor(
+                                  (elapsedMs % 60000) / 1000,
+                              );
+                              const pct = Math.min(
+                                  100,
+                                  (elapsedMins / t.timeFrameMinutes) * 100,
+                              );
+                              const onTrack =
+                                  elapsedMins >=
+                                  Math.floor(t.timeFrameMinutes * 0.7);
+                              return `<div class="timer-display" data-task-id="${t.id}" data-started="${t.startedAt}" data-duration="${t.timeFrameMinutes}">
+                                <div class="timer-row">
+                                  <span class="timer-label">⏱ In progress</span>
+                                  <span class="timer-clock" id="timer-${t.id}">${elapsedMins}m ${elapsedSecs}s</span>
+                                </div>
+                                <div class="timer-track"><div class="timer-fill" style="width:${pct}%"></div></div>
+                                <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">${onTrack ? "✅ On track to complete" : `${t.timeFrameMinutes - elapsedMins}m remaining`}</div>
+                            </div>
+                            <div class="task-actions">
+                              <button class="btn-complete${onTrack ? "" : " btn-complete-dim"}" onclick="event.stopPropagation();completeTask('${t.id}')">■ End Task</button>
+                              <button class="btn-delete" onclick="event.stopPropagation();deleteTask('${t.id}')">🗑 Delete</button>
+                            </div>`;
+                          }
+                      } else {
+                          return `<div class="task-actions">
+                          <button class="btn-complete" onclick="event.stopPropagation();completeTask('${t.id}')">✓ Complete</button>
+                          <button class="btn-delete" onclick="event.stopPropagation();deleteTask('${t.id}')">🗑 Delete</button>
+                        </div>`;
+                      }
+                  })()
                 : ""
         }
       </div>
@@ -502,6 +575,39 @@ function renderTasks() {
             }
         } catch (e) {}
     });
+
+    // Live timer tick for in-progress tasks
+    startLiveTimers();
+}
+
+let _timerInterval = null;
+function startLiveTimers() {
+    if (_timerInterval) clearInterval(_timerInterval);
+    const hasRunning = state.tasks.some(
+        (t) => !t.completed && t.startedAt && t.timeFrameMinutes > 0,
+    );
+    if (!hasRunning) return;
+    _timerInterval = setInterval(() => {
+        document.querySelectorAll(".timer-display").forEach((el) => {
+            const startedAt = +el.dataset.started;
+            const duration = +el.dataset.duration;
+            const taskId = el.dataset.taskId;
+            const elapsedMs = Date.now() - startedAt;
+            const elapsedMins = Math.floor(elapsedMs / 60000);
+            const elapsedSecs = Math.floor((elapsedMs % 60000) / 1000);
+            const pct = Math.min(100, (elapsedMins / duration) * 100);
+            const onTrack = elapsedMins >= Math.floor(duration * 0.7);
+            const clock = document.getElementById(`timer-${taskId}`);
+            if (clock) clock.textContent = `${elapsedMins}m ${elapsedSecs}s`;
+            const fill = el.querySelector(".timer-fill");
+            if (fill) fill.style.width = pct + "%";
+            const hint = el.querySelector("div:last-child");
+            if (hint)
+                hint.textContent = onTrack
+                    ? "✅ On track to complete"
+                    : `${duration - elapsedMins}m remaining`;
+        });
+    }, 1000);
 }
 
 function toggleTask(id) {
@@ -509,9 +615,44 @@ function toggleTask(id) {
     if (el) el.classList.toggle("expanded");
 }
 
+function startTask(id) {
+    const t = state.tasks.find((x) => x.id === id);
+    if (!t || t.completed || t.startedAt) return;
+    t.startedAt = Date.now();
+    save();
+    syncMyTasksToFirebase();
+    renderTasks();
+}
+
 function completeTask(id) {
     const t = state.tasks.find((x) => x.id === id);
     if (!t || t.completed) return;
+
+    // Instant task: must be completed within ±5 min of its deadline
+    if (t.isInstant) {
+        const diff = Math.abs(Date.now() - t.deadline);
+        if (diff > 5 * 60 * 1000) {
+            const minsOff = Math.round(diff / 60000);
+            const direction =
+                Date.now() < t.deadline ? "too early" : "too late";
+            if (
+                !confirm(
+                    `⚠️ You're ${minsOff}m ${direction} for this instant task (±5 min window).\nComplete anyway without points?`,
+                )
+            )
+                return;
+            t.completed = true;
+            t.completedAt = Date.now();
+            t.flagged = true;
+            t.flagReason = `Completed ${minsOff}m ${direction} — outside ±5 min window`;
+            t.points = 0;
+            save();
+            syncMyTasksToFirebase();
+            renderTasks();
+            return;
+        }
+    }
+
     const completionMins = Math.floor((Date.now() - t.createdAt) / 60000);
     const cheat = checkCheat(t, completionMins);
     t.completed = true;
@@ -559,10 +700,11 @@ let addForm = {
     desc: "",
     deadline: Date.now() + 86400000,
     timeMins: 60,
+    isInstant: false,
     customTime: false,
     category: "general",
     mode: "private",
-    assignedGroup: "", // group code or "" for none
+    assignedGroup: "",
     difficulty: 5,
     reasoning: "",
     tips: "",
@@ -575,6 +717,7 @@ function openAddTask() {
         desc: "",
         deadline: Date.now() + 86400000,
         timeMins: 60,
+        isInstant: false,
         customTime: false,
         category: "general",
         mode: "private",
@@ -610,7 +753,7 @@ function renderAddModal() {
         const timeChipsHtml =
             TIME_OPTIONS.map(
                 (o) =>
-                    `<button class="chip${!addForm.customTime && addForm.timeMins === o.v ? " active" : ""}" data-time="${o.v}">${o.l}</button>`,
+                    `<button class="chip${o.v === 0 ? " chip-instant" : ""}${(o.v === 0 ? addForm.isInstant : !addForm.isInstant && !addForm.customTime && addForm.timeMins === o.v) ? " active" : ""}" data-time="${o.v}">${o.l}</button>`,
             ).join("") +
             `<button class="chip${addForm.customTime ? " active" : ""}" data-time="custom">Custom</button>`;
 
@@ -679,8 +822,14 @@ function renderAddModal() {
         sheet.querySelectorAll("[data-time]").forEach((b) =>
             b.addEventListener("click", () => {
                 if (b.dataset.time === "custom") {
+                    addForm.isInstant = false;
                     addForm.customTime = true;
+                } else if (b.dataset.time === "0") {
+                    addForm.isInstant = true;
+                    addForm.customTime = false;
+                    addForm.timeMins = 0;
                 } else {
+                    addForm.isInstant = false;
                     addForm.customTime = false;
                     addForm.timeMins = +b.dataset.time;
                 }
@@ -862,6 +1011,8 @@ function saveNewTask() {
         completed: false,
         completedAt: 0,
         createdAt: now,
+        isInstant: addForm.isInstant || false,
+        startedAt: 0,
         category: addForm.category,
         competitionMode: addForm.assignedGroup ? "group" : addForm.mode,
         flagged: false,

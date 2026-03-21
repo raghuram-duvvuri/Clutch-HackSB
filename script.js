@@ -206,7 +206,32 @@ const OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions";
 async function aiRateDifficulty(title, desc, timeMins, category) {
     if (!OPENAI_API_KEY) return localDifficulty(title, desc, timeMins);
     try {
-        const prompt = `You are a task difficulty rater. Rate 1-10.\nTitle: ${title}\nDescription: ${desc}\nTime: ${timeMins} min\nCategory: ${category}\nRespond ONLY with JSON: {"difficulty":<1-10>,"reasoning":"<one sentence>","tips":"<one tip>"}`;
+        const durationLabel =
+            timeMins === 0
+                ? "Instant (under 5 minutes)"
+                : timeMins < 60
+                  ? `${timeMins} minutes`
+                  : `${Math.floor(timeMins / 60)}h${timeMins % 60 ? " " + (timeMins % 60) + "m" : ""}`;
+
+        const prompt = `You are a productivity coach rating task difficulty on a scale of 1–10.
+
+Task name: "${title}"
+${desc ? `Details: "${desc}"` : ""}
+Category: ${category}
+Estimated duration: ${durationLabel}
+
+Difficulty scale:
+1–2 = trivial (e.g. send a text, drink water)
+3–4 = easy (e.g. reply to an email, quick chore)
+5–6 = moderate (e.g. write a short essay, 1-hour study session)
+7–8 = hard (e.g. debug complex code, 3-hour deep work session)
+9–10 = extreme (e.g. all-day exam prep, major project milestone)
+
+Consider BOTH the task name/nature AND the duration when rating. A 5-hour easy task is harder than a 30-minute easy task. An instant task should generally score 1–3 unless it sounds stressful.
+
+Respond ONLY with valid JSON, no extra text:
+{"difficulty":<1-10>,"reasoning":"<one concise sentence explaining the rating>","tips":"<one actionable tip to tackle this task>"}`;
+
         const res = await fetch(OPENAI_ENDPOINT, {
             method: "POST",
             headers: {
@@ -216,6 +241,7 @@ async function aiRateDifficulty(title, desc, timeMins, category) {
             body: JSON.stringify({
                 model: "gpt-4o-mini",
                 max_tokens: 200,
+                temperature: 0.4,
                 messages: [{ role: "user", content: prompt }],
             }),
         });
@@ -225,7 +251,7 @@ async function aiRateDifficulty(title, desc, timeMins, category) {
         const clean = text.replace(/```json|```/g, "").trim();
         const json = JSON.parse(clean);
         return {
-            difficulty: Math.max(1, Math.min(10, json.difficulty)),
+            difficulty: Math.max(1, Math.min(10, Math.round(json.difficulty))),
             reasoning: json.reasoning,
             tips: json.tips,
         };

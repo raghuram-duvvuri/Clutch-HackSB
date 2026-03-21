@@ -754,7 +754,9 @@ function renderAddModal() {
     const sheet = document.getElementById("modalSheet");
     if (addStep === 0) {
         const deadlineDate = new Date(addForm.deadline);
-        const deadlineStr = deadlineDate.toISOString().slice(0, 16);
+        // Format in local time for datetime-local input (avoid UTC shift)
+        const pad = (n) => String(n).padStart(2, "0");
+        const deadlineStr = `${deadlineDate.getFullYear()}-${pad(deadlineDate.getMonth() + 1)}-${pad(deadlineDate.getDate())}T${pad(deadlineDate.getHours())}:${pad(deadlineDate.getMinutes())}`;
 
         // Build group options for dropdown
         const groupCodes = state.myGroupCodes || [];

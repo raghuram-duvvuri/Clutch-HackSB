@@ -77,7 +77,224 @@ const TIME_OPTIONS = [
 ];
 
 // ============================================
-// STATE
+// CHALLENGES CATALOG
+// Each challenge: id, title, desc, icon, bonus, windowDays,
+//   type: "count"|"points"|"streak"|"difficulty"|"category_points"|"category_count"|"all_categories"|"speed"
+//   target: number
+//   category: optional category id filter
+// ============================================
+const CHALLENGES = [
+    // ── Daily ──────────────────────────────────
+    {
+        id: "daily_first",
+        title: "Early Bird",
+        desc: "Complete 1 task today",
+        icon: "🌅",
+        bonus: 25,
+        windowDays: 1,
+        type: "count",
+        target: 1,
+    },
+    {
+        id: "daily_three",
+        title: "Hat Trick",
+        desc: "Complete 3 tasks in one day",
+        icon: "🎩",
+        bonus: 75,
+        windowDays: 1,
+        type: "count",
+        target: 3,
+    },
+    {
+        id: "daily_five",
+        title: "On Fire",
+        desc: "Complete 5 tasks in one day",
+        icon: "🔥",
+        bonus: 150,
+        windowDays: 1,
+        type: "count",
+        target: 5,
+    },
+    {
+        id: "daily_hard",
+        title: "Clutch Play",
+        desc: "Complete a difficulty 8+ task today",
+        icon: "⚔️",
+        bonus: 100,
+        windowDays: 1,
+        type: "difficulty",
+        target: 8,
+    },
+    {
+        id: "daily_speed",
+        title: "Speed Run",
+        desc: "Complete 2 tasks within 1 hour of each other today",
+        icon: "⚡",
+        bonus: 80,
+        windowDays: 1,
+        type: "speed",
+        target: 2,
+    },
+    // ── Weekly ─────────────────────────────────
+    {
+        id: "weekly_ten",
+        title: "Grind Mode",
+        desc: "Complete 10 tasks this week",
+        icon: "💪",
+        bonus: 200,
+        windowDays: 7,
+        type: "count",
+        target: 10,
+    },
+    {
+        id: "weekly_points",
+        title: "Point Chaser",
+        desc: "Earn 500 points this week",
+        icon: "⭐",
+        bonus: 250,
+        windowDays: 7,
+        type: "points",
+        target: 500,
+    },
+    {
+        id: "weekly_bigpoints",
+        title: "Elite Grinder",
+        desc: "Earn 1000 points this week",
+        icon: "💎",
+        bonus: 500,
+        windowDays: 7,
+        type: "points",
+        target: 1000,
+    },
+    {
+        id: "weekly_hard",
+        title: "Hard Mode",
+        desc: "Complete 3 difficulty 7+ tasks this week",
+        icon: "🧠",
+        bonus: 300,
+        windowDays: 7,
+        type: "difficulty",
+        target: 7,
+        count: 3,
+    },
+    {
+        id: "weekly_extreme",
+        title: "Extreme Run",
+        desc: "Complete a difficulty 10 task this week",
+        icon: "👾",
+        bonus: 400,
+        windowDays: 7,
+        type: "difficulty",
+        target: 10,
+        count: 1,
+    },
+    {
+        id: "weekly_streak",
+        title: "Consistent",
+        desc: "Complete at least 1 task every day for 5 days",
+        icon: "📅",
+        bonus: 350,
+        windowDays: 7,
+        type: "streak",
+        target: 5,
+    },
+    // ── Category specific ──────────────────────
+    {
+        id: "cat_exam",
+        title: "Study Grind",
+        desc: "Earn 300 points from Exam Prep tasks this week",
+        icon: "🧪",
+        bonus: 200,
+        windowDays: 7,
+        type: "category_points",
+        target: 300,
+        category: "exam",
+    },
+    {
+        id: "cat_fitness",
+        title: "Fitness Freak",
+        desc: "Complete 5 Fitness tasks this week",
+        icon: "🏃",
+        bonus: 175,
+        windowDays: 7,
+        type: "category_count",
+        target: 5,
+        category: "fitness",
+    },
+    {
+        id: "cat_creative",
+        title: "Creative Burst",
+        desc: "Complete 3 Creative tasks this week",
+        icon: "🎨",
+        bonus: 150,
+        windowDays: 7,
+        type: "category_count",
+        target: 3,
+        category: "creative",
+    },
+    {
+        id: "cat_project",
+        title: "Project Mode",
+        desc: "Earn 400 points from Project tasks this week",
+        icon: "🔨",
+        bonus: 250,
+        windowDays: 7,
+        type: "category_points",
+        target: 400,
+        category: "project",
+    },
+    // ── All-time / milestone ───────────────────
+    {
+        id: "milestone_10",
+        title: "Getting Started",
+        desc: "Complete 10 tasks total",
+        icon: "🚀",
+        bonus: 100,
+        windowDays: 0,
+        type: "count_alltime",
+        target: 10,
+    },
+    {
+        id: "milestone_50",
+        title: "Committed",
+        desc: "Complete 50 tasks total",
+        icon: "🎯",
+        bonus: 300,
+        windowDays: 0,
+        type: "count_alltime",
+        target: 50,
+    },
+    {
+        id: "milestone_100",
+        title: "Century Club",
+        desc: "Complete 100 tasks total",
+        icon: "🏆",
+        bonus: 750,
+        windowDays: 0,
+        type: "count_alltime",
+        target: 100,
+    },
+    {
+        id: "milestone_streak10",
+        title: "Unbreakable",
+        desc: "Reach a 10-day streak",
+        icon: "🔥",
+        bonus: 500,
+        windowDays: 0,
+        type: "streak_alltime",
+        target: 10,
+    },
+    {
+        id: "all_categories",
+        title: "Renaissance",
+        desc: "Complete a task in every category this week",
+        icon: "🌟",
+        bonus: 400,
+        windowDays: 7,
+        type: "all_categories",
+        target: CATEGORIES.length,
+    },
+];
 // ============================================
 let state = {
     onboarded: false,
@@ -92,6 +309,7 @@ let state = {
     },
     tasks: [],
     groups: [],
+    completedChallenges: {},
     currentTab: "tasks",
     calMonth: new Date().getMonth(),
     calYear: new Date().getFullYear(),
@@ -192,6 +410,134 @@ function startOfDay(date) {
 }
 function isSameDay(a, b) {
     return startOfDay(a) === startOfDay(b);
+}
+
+// ============================================
+// CHALLENGE ENGINE
+// ============================================
+function getChallengeProgress(ch) {
+    const now = Date.now();
+    const windowMs = ch.windowDays > 0 ? ch.windowDays * 86400000 : Infinity;
+    const since = ch.windowDays > 0 ? now - windowMs : 0;
+    const windowTasks = state.tasks.filter(
+        (t) => t.completed && !t.flagged && t.completedAt >= since,
+    );
+
+    switch (ch.type) {
+        case "count":
+            return { value: windowTasks.length, max: ch.target };
+        case "count_alltime":
+            return { value: state.profile.tasksCompleted || 0, max: ch.target };
+        case "points":
+            return {
+                value: windowTasks.reduce((s, t) => s + t.points, 0),
+                max: ch.target,
+            };
+        case "difficulty": {
+            const qualified = windowTasks.filter(
+                (t) => t.difficulty >= ch.target,
+            );
+            const needed = ch.count || 1;
+            return { value: qualified.length, max: needed };
+        }
+        case "streak":
+            // count distinct days in window with at least 1 completion
+            const days = new Set(
+                windowTasks.map((t) => startOfDay(t.completedAt)),
+            );
+            return { value: days.size, max: ch.target };
+        case "streak_alltime":
+            return {
+                value: state.profile.bestStreak || 0,
+                max: ch.target,
+            };
+        case "category_points":
+            return {
+                value: windowTasks
+                    .filter((t) => t.category === ch.category)
+                    .reduce((s, t) => s + t.points, 0),
+                max: ch.target,
+            };
+        case "category_count":
+            return {
+                value: windowTasks.filter((t) => t.category === ch.category)
+                    .length,
+                max: ch.target,
+            };
+        case "all_categories": {
+            const cats = new Set(windowTasks.map((t) => t.category));
+            return { value: cats.size, max: CATEGORIES.length };
+        }
+        case "speed": {
+            // Find any pair of completions within 60 min of each other
+            const sorted = windowTasks
+                .map((t) => t.completedAt)
+                .sort((a, b) => a - b);
+            let pairs = 0;
+            for (let i = 1; i < sorted.length; i++) {
+                if (sorted[i] - sorted[i - 1] <= 3600000) {
+                    pairs++;
+                    break;
+                }
+            }
+            return {
+                value: pairs > 0 ? 2 : windowTasks.length > 0 ? 1 : 0,
+                max: 2,
+            };
+        }
+        default:
+            return { value: 0, max: ch.target };
+    }
+}
+
+// Called after every task completion — awards bonus points for newly completed challenges
+function evaluateChallenges() {
+    if (!state.completedChallenges) state.completedChallenges = {};
+    let newlyCompleted = [];
+
+    CHALLENGES.forEach((ch) => {
+        // For windowed challenges, reset completion if window has expired
+        if (ch.windowDays > 0 && state.completedChallenges[ch.id]) {
+            const completedAt = state.completedChallenges[ch.id].completedAt;
+            if (Date.now() - completedAt > ch.windowDays * 86400000) {
+                delete state.completedChallenges[ch.id];
+            }
+        }
+        if (state.completedChallenges[ch.id]) return; // already done
+
+        const { value, max } = getChallengeProgress(ch);
+        if (value >= max) {
+            state.completedChallenges[ch.id] = {
+                completedAt: Date.now(),
+                bonusAwarded: ch.bonus,
+            };
+            state.profile.totalPoints += ch.bonus;
+            state.profile.level = calcLevel(state.profile.totalPoints);
+            newlyCompleted.push(ch);
+        }
+    });
+
+    if (newlyCompleted.length) {
+        save();
+        // Show a toast for each
+        newlyCompleted.forEach((ch) => showChallengeToast(ch));
+    }
+}
+
+function showChallengeToast(ch) {
+    const toast = document.createElement("div");
+    toast.className = "challenge-toast";
+    toast.innerHTML = `<span style="font-size:22px;">${ch.icon}</span>
+        <div>
+            <div style="font-size:13px;font-weight:800;">Challenge Complete!</div>
+            <div style="font-size:12px;color:var(--text-dim);">${ch.title} · <span style="color:var(--neon);font-weight:700;">+${ch.bonus} pts</span></div>
+        </div>`;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.classList.add("show"), 50);
+    setTimeout(() => {
+        toast.classList.remove("show");
+        setTimeout(() => toast.remove(), 400);
+    }, 3500);
 }
 
 // ============================================
@@ -704,6 +1050,7 @@ function completeTask(id) {
         state.profile.level = calcLevel(state.profile.totalPoints);
     }
     save();
+    evaluateChallenges();
     syncMyTasksToFirebase();
     renderTasks();
 }
@@ -2154,17 +2501,14 @@ async function openGroupDetail(code) {
                     const cat =
                         CATEGORIES.find((c) => c.id === t.category) ||
                         CATEGORIES[0];
-                    const disputeKey = `dispute_${code}_${m.id}_${t.id}`;
                     const existingDispute = g.disputes?.[m.id]?.[t.id];
                     const myVote = existingDispute?.votes?.[myId];
-                    const voteCount = existingDispute
-                        ? Object.keys(existingDispute.votes || {}).length
-                        : 0;
-                    const upVotes = existingDispute
-                        ? Object.values(existingDispute.votes || {}).filter(
-                              (v) => v === "up",
-                          ).length
-                        : 0;
+                    const votes = existingDispute?.votes
+                        ? Object.values(existingDispute.votes)
+                        : [];
+                    const upVotes = votes.filter((v) => v === "up").length;
+                    const downVotes = votes.filter((v) => v === "down").length;
+                    const hardVotes = votes.filter((v) => v === "hard").length;
                     const canContest = !isMe && !t.completed;
                     const isContested = !!existingDispute;
 
@@ -2173,7 +2517,7 @@ async function openGroupDetail(code) {
                         <div style="flex:1;min-width:0;">
                             <div style="font-size:13px;font-weight:600;${t.completed ? "color:var(--text-muted);text-decoration:line-through;" : ""}">${esc(t.title)}</div>
                             <div style="font-size:11px;color:var(--text-dim);">${cat.icon} ${cat.label} · ${diffLabel(t.difficulty)} · ${timeUntil(t.deadline)}</div>
-                            ${isContested ? `<div class="dispute-pill">⚖️ Contested · ${upVotes}↑ ${voteCount - upVotes}↓${myVote ? ` · You voted ${myVote === "up" ? "too easy" : "fair"}` : ""}</div>` : ""}
+                            ${isContested ? `<div class="dispute-pill">⚖️ Contested · ${upVotes}↑easy ${hardVotes}↑hard ${downVotes}↓fair${myVote ? ` · you: ${myVote === "up" ? "too easy" : myVote === "hard" ? "too hard" : "fair"}` : ""}</div>` : ""}
                         </div>
                         <div style="text-align:right;flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
                             ${t.completed ? '<span style="color:var(--success);">✓</span>' : `<span style="font-family:var(--mono);font-size:12px;color:var(--neon);">+${t.points}</span>`}
@@ -2207,7 +2551,6 @@ async function openDisputeModal(
     const sheet = document.getElementById("modalSheet");
     const myId = getMyId();
 
-    // Load existing dispute if any
     let existingDispute = null;
     try {
         const snap = await db
@@ -2222,16 +2565,20 @@ async function openDisputeModal(
         : [];
     const upVotes = votes.filter((v) => v === "up").length;
     const downVotes = votes.filter((v) => v === "down").length;
+    const hardVotes = votes.filter((v) => v === "hard").length;
+
+    const voteLabel = (v) =>
+        v === "up" ? "Too Easy" : v === "hard" ? "Too Hard" : "Fair";
 
     sheet.innerHTML = `
         <div class="modal-header"><h2>⚖️ Dispute Difficulty</h2><button class="modal-close" onclick="closeAddTask()">×</button></div>
         <div class="dispute-task-preview">
-            <div style="font-size:13px;color:var(--text-muted);margin-bottom:4px;">Task in question</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">TASK IN QUESTION</div>
             <div style="font-size:15px;font-weight:700;">${taskTitle}</div>
             <div style="display:flex;align-items:center;gap:10px;margin-top:10px;">
-                <div style="font-size:28px;font-weight:900;color:${diffColor(currentDiff)};">${currentDiff}</div>
+                <div style="font-size:32px;font-weight:900;color:${diffColor(currentDiff)};">${currentDiff}</div>
                 <div>
-                    <div style="font-size:13px;font-weight:700;color:${diffColor(currentDiff)};">${diffLabel(currentDiff)}</div>
+                    <div style="font-size:14px;font-weight:700;color:${diffColor(currentDiff)};">${diffLabel(currentDiff)}</div>
                     <div style="font-size:11px;color:var(--text-muted);">AI-rated difficulty · +${currentPts} pts</div>
                 </div>
             </div>
@@ -2241,18 +2588,22 @@ async function openDisputeModal(
             existingDispute
                 ? `
         <div class="dispute-votes-card">
-            <div style="font-size:12px;font-weight:700;color:var(--text-muted);letter-spacing:1px;margin-bottom:10px;">CURRENT VOTES</div>
-            <div style="display:flex;gap:12px;">
-                <div class="dispute-vote-count up">
-                    <div style="font-size:22px;font-weight:900;">${upVotes}</div>
-                    <div style="font-size:11px;">Too Easy</div>
+            <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:1px;margin-bottom:10px;">CURRENT VOTES</div>
+            <div style="display:flex;gap:8px;">
+                <div class="dispute-vote-count easy">
+                    <div style="font-size:20px;font-weight:900;">${upVotes}</div>
+                    <div style="font-size:10px;">Too Easy</div>
                 </div>
-                <div class="dispute-vote-count down">
-                    <div style="font-size:22px;font-weight:900;">${downVotes}</div>
-                    <div style="font-size:11px;">Fair Rating</div>
+                <div class="dispute-vote-count fair">
+                    <div style="font-size:20px;font-weight:900;">${downVotes}</div>
+                    <div style="font-size:10px;">Fair</div>
+                </div>
+                <div class="dispute-vote-count hard">
+                    <div style="font-size:20px;font-weight:900;">${hardVotes}</div>
+                    <div style="font-size:10px;">Too Hard</div>
                 </div>
             </div>
-            ${existingDispute.resolved ? `<div style="margin-top:10px;font-size:13px;color:var(--neon);font-weight:700;">✓ Resolved — difficulty ${existingDispute.resolvedDiff > currentDiff ? `raised to ${existingDispute.resolvedDiff}` : "kept as-is"}</div>` : ""}
+            ${existingDispute.resolved ? `<div style="margin-top:10px;font-size:13px;color:var(--neon);font-weight:700;">✓ Resolved — difficulty ${existingDispute.resolvedDiff !== currentDiff ? `changed to ${existingDispute.resolvedDiff}` : "kept as " + currentDiff}</div>` : ""}
         </div>`
                 : ""
         }
@@ -2260,22 +2611,28 @@ async function openDisputeModal(
         ${
             myVote
                 ? `
-        <div style="text-align:center;padding:16px;color:var(--text-muted);font-size:13px;">You already voted: <strong style="color:var(--text);">${myVote === "up" ? "Too Easy" : "Fair Rating"}</strong></div>
-        `
+        <div style="text-align:center;padding:16px;color:var(--text-muted);font-size:13px;">
+            You already voted: <strong style="color:var(--text);">${voteLabel(myVote)}</strong>
+        </div>`
                 : `
-        <div style="font-size:13px;color:var(--text-dim);margin-bottom:16px;line-height:1.5;">
-            Do you think this difficulty rating is too easy? If the majority votes <strong>"Too Easy"</strong>, the difficulty will be raised and the task owner earns fewer points.
+        <div style="font-size:13px;color:var(--text-dim);margin-bottom:14px;line-height:1.5;">
+            Vote on whether this difficulty is accurate. The majority wins — <strong>Too Easy</strong> raises it by 2, <strong>Too Hard</strong> lowers it by 2.
         </div>
-        <div style="display:flex;gap:10px;">
-            <button class="btn-dispute-vote up" onclick="castDisputeVote('${groupCode}','${ownerId}','${taskId}',${currentDiff},${currentPts},'up')">
-                <div style="font-size:20px;">📈</div>
-                <div style="font-size:13px;font-weight:700;">Too Easy</div>
-                <div style="font-size:11px;opacity:0.7;">Raise difficulty</div>
+        <div style="display:flex;gap:8px;">
+            <button class="btn-dispute-vote easy" onclick="castDisputeVote('${groupCode}','${ownerId}','${taskId}',${currentDiff},${currentPts},'up')">
+                <div style="font-size:18px;">📈</div>
+                <div style="font-size:12px;font-weight:700;">Too Easy</div>
+                <div style="font-size:10px;opacity:0.7;">Raise +2</div>
             </button>
-            <button class="btn-dispute-vote down" onclick="castDisputeVote('${groupCode}','${ownerId}','${taskId}',${currentDiff},${currentPts},'down')">
-                <div style="font-size:20px;">✅</div>
-                <div style="font-size:13px;font-weight:700;">Fair Rating</div>
-                <div style="font-size:11px;opacity:0.7;">Keep as-is</div>
+            <button class="btn-dispute-vote fair" onclick="castDisputeVote('${groupCode}','${ownerId}','${taskId}',${currentDiff},${currentPts},'down')">
+                <div style="font-size:18px;">✅</div>
+                <div style="font-size:12px;font-weight:700;">Fair</div>
+                <div style="font-size:10px;opacity:0.7;">Keep as-is</div>
+            </button>
+            <button class="btn-dispute-vote hard" onclick="castDisputeVote('${groupCode}','${ownerId}','${taskId}',${currentDiff},${currentPts},'hard')">
+                <div style="font-size:18px;">📉</div>
+                <div style="font-size:12px;font-weight:700;">Too Hard</div>
+                <div style="font-size:10px;opacity:0.7;">Lower −2</div>
             </button>
         </div>`
         }`;
@@ -2295,50 +2652,55 @@ async function castDisputeVote(
     const disputePath = `groups/${groupCode}/disputes/${ownerId}/${taskId}`;
 
     try {
-        // Record the vote
         await db.ref(`${disputePath}/votes/${myId}`).set(vote);
         await db.ref(`${disputePath}/taskId`).set(taskId);
         await db.ref(`${disputePath}/ownerId`).set(ownerId);
         await db.ref(`${disputePath}/originalDiff`).set(currentDiff);
         await db.ref(`${disputePath}/createdAt`).set(Date.now());
 
-        // Fetch updated votes to check if we should resolve
         const snap = await db.ref(disputePath).once("value");
         const dispute = snap.val();
         const votes = Object.values(dispute.votes || {});
         const upVotes = votes.filter((v) => v === "up").length;
         const downVotes = votes.filter((v) => v === "down").length;
+        const hardVotes = votes.filter((v) => v === "hard").length;
         const total = votes.length;
 
-        // Fetch group member count for quorum
+        // Get member count for quorum
         const membersSnap = await db
             .ref(`groups/${groupCode}/members`)
             .once("value");
         const memberCount = membersSnap.val()
             ? Object.keys(membersSnap.val()).length
             : 1;
-        const otherCount = Math.max(1, memberCount - 1); // exclude owner
+        const otherCount = Math.max(1, memberCount - 1);
 
-        // Resolve if: all others voted, or clear majority (>60%) with at least 2 votes
         const allVoted = total >= otherCount;
         const clearMajority =
-            total >= 2 && (upVotes / total > 0.6 || downVotes / total > 0.6);
+            total >= 2 && Math.max(upVotes, downVotes, hardVotes) / total > 0.6;
 
         if (allVoted || clearMajority) {
-            const tooEasyWins = upVotes > downVotes;
-            const newDiff = tooEasyWins
-                ? Math.min(10, currentDiff + 2)
-                : currentDiff;
-            const newPts = tooEasyWins
-                ? calcPoints(newDiff, 60, Date.now() + 86400000, Date.now())
-                : currentPts;
+            // Determine winner — most votes wins; ties keep as-is
+            let newDiff = currentDiff;
+            let outcome = "kept";
+            if (upVotes > downVotes && upVotes > hardVotes) {
+                newDiff = Math.min(10, currentDiff + 2);
+                outcome = "raised";
+            } else if (hardVotes > downVotes && hardVotes > upVotes) {
+                newDiff = Math.max(1, currentDiff - 2);
+                outcome = "lowered";
+            }
+
+            const newPts =
+                newDiff !== currentDiff
+                    ? calcPoints(newDiff, 60, Date.now() + 86400000, Date.now())
+                    : currentPts;
 
             await db.ref(`${disputePath}/resolved`).set(true);
             await db.ref(`${disputePath}/resolvedDiff`).set(newDiff);
             await db.ref(`${disputePath}/resolvedAt`).set(Date.now());
 
-            if (tooEasyWins && newDiff !== currentDiff) {
-                // Update the task difficulty in the owner's memberTasks
+            if (newDiff !== currentDiff) {
                 const tasksSnap = await db
                     .ref(`groups/${groupCode}/memberTasks/${ownerId}`)
                     .once("value");
@@ -2360,9 +2722,11 @@ async function castDisputeVote(
 
             closeAddTask();
             const msg =
-                tooEasyWins && newDiff !== currentDiff
-                    ? `⚖️ Dispute resolved! Difficulty raised from ${currentDiff} → ${newDiff}`
-                    : `⚖️ Dispute resolved! Rating kept as ${currentDiff}`;
+                outcome === "raised"
+                    ? `⚖️ Resolved! Difficulty raised ${currentDiff} → ${newDiff} (+2)`
+                    : outcome === "lowered"
+                      ? `⚖️ Resolved! Difficulty lowered ${currentDiff} → ${newDiff} (−2)`
+                      : `⚖️ Resolved! Rating kept at ${currentDiff} — majority said it's fair`;
             alert(msg);
         } else {
             closeAddTask();
@@ -2408,42 +2772,81 @@ async function leaveGroup(code) {
 }
 
 function renderChallenges(el) {
-    const challenges = [
+    if (!state.completedChallenges) state.completedChallenges = {};
+    const now = Date.now();
+
+    // Group challenges: daily, weekly, milestones
+    const groups = [
         {
-            title: "Weekend Warrior",
-            desc: "Complete 10 tasks as a group this weekend",
-            progress: 0.6,
-            bonus: 200,
-            deadline: "2d left",
+            label: "⚡ Daily",
+            ids: CHALLENGES.filter((c) => c.windowDays === 1).map((c) => c.id),
         },
         {
-            title: "Hard Mode",
-            desc: "Everyone completes at least one difficulty 8+ task",
-            progress: 0.33,
-            bonus: 350,
-            deadline: "5d left",
+            label: "📅 Weekly",
+            ids: CHALLENGES.filter((c) => c.windowDays === 7).map((c) => c.id),
         },
         {
-            title: "Study Sprint",
-            desc: "Accumulate 1000 points in Exam Prep category",
-            progress: 0.75,
-            bonus: 500,
-            deadline: "1d left",
+            label: "🏆 Milestones",
+            ids: CHALLENGES.filter((c) => c.windowDays === 0).map((c) => c.id),
         },
     ];
-    el.innerHTML = challenges
-        .map(
-            (c) => `
-    <div class="challenge-card">
-      <div class="challenge-header">
-        <div><div class="challenge-title">${c.title}</div><div class="challenge-desc">${c.desc}</div></div>
-        <div><div class="challenge-bonus">+${c.bonus}</div><div class="challenge-deadline">${c.deadline}</div></div>
-      </div>
-      <div class="challenge-bar-track"><div class="challenge-bar-fill" style="width:${c.progress * 100}%"></div></div>
-      <div class="challenge-progress">${Math.round(c.progress * 100)}% complete</div>
-    </div>`,
-        )
-        .join("");
+
+    let html = "";
+    groups.forEach(({ label, ids }) => {
+        const group = CHALLENGES.filter((c) => ids.includes(c.id));
+        if (!group.length) return;
+        html += `<div class="challenge-group-label">${label}</div>`;
+        group.forEach((ch) => {
+            const done = state.completedChallenges[ch.id];
+            const { value, max } = getChallengeProgress(ch);
+            const pct = Math.min(100, Math.round((value / max) * 100));
+            const isComplete = done || value >= max;
+
+            let timeLabel = "";
+            if (ch.windowDays > 0 && !done) {
+                const msLeft =
+                    ch.windowDays * 86400000 -
+                    (now % (ch.windowDays * 86400000));
+                const hLeft = Math.floor(msLeft / 3600000);
+                timeLabel =
+                    hLeft < 24 ? `${hLeft}h left` : `${ch.windowDays}d window`;
+            } else if (done) {
+                timeLabel = "Completed ✓";
+            } else {
+                timeLabel = "All time";
+            }
+
+            html += `<div class="challenge-card${isComplete ? " challenge-done" : ""}">
+                <div class="challenge-header">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <span style="font-size:24px;">${ch.icon}</span>
+                        <div>
+                            <div class="challenge-title">${ch.title}</div>
+                            <div class="challenge-desc">${ch.desc}</div>
+                        </div>
+                    </div>
+                    <div style="text-align:right;flex-shrink:0;">
+                        <div class="challenge-bonus${isComplete ? " earned" : ""}">+${ch.bonus}</div>
+                        <div class="challenge-deadline">${timeLabel}</div>
+                    </div>
+                </div>
+                <div class="challenge-bar-track">
+                    <div class="challenge-bar-fill${isComplete ? " complete" : ""}" style="width:${pct}%"></div>
+                </div>
+                <div class="challenge-progress">
+                    ${
+                        isComplete
+                            ? `<span style="color:var(--success);font-weight:700;">✓ Bonus awarded: +${ch.bonus} pts</span>`
+                            : `${value} / ${max} · ${pct}%`
+                    }
+                </div>
+            </div>`;
+        });
+    });
+
+    el.innerHTML =
+        html ||
+        `<div class="empty-state"><div class="emoji">🎯</div><h3>No challenges</h3></div>`;
 }
 
 // ============================================

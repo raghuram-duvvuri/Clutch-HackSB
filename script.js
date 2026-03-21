@@ -166,10 +166,10 @@ function levelTitle(lv) {
 }
 function timeUntil(deadline) {
     const diff = deadline - Date.now();
-    if (diff < 0) return "Overdue";
+    if (diff < 0) return "Started";
     const h = Math.floor(diff / 3600000);
-    if (h < 24) return h + "h left";
-    return Math.floor(h / 24) + "d left";
+    if (h < 24) return "Starts in " + h + "h";
+    return "Starts in " + Math.floor(h / 24) + "d";
 }
 function fmtDate(d) {
     const dt = new Date(d);
@@ -784,7 +784,7 @@ function renderAddModal() {
         <textarea class="input-field" id="atDesc" placeholder="What does this involve?" rows="2">${esc(addForm.desc)}</textarea></div>
       <div class="form-group"><label class="form-label">Category</label>
         <div class="chip-row">${CATEGORIES.map((c) => `<button class="cat-chip${addForm.category === c.id ? " active" : ""}" data-cat="${c.id}"><span class="cat-icon">${c.icon}</span>${c.label}</button>`).join("")}</div></div>
-      <div class="form-group"><label class="form-label">Deadline</label>
+      <div class="form-group"><label class="form-label">Start Date &amp; Time</label>
         <input type="datetime-local" class="input-field" id="atDeadline" value="${deadlineStr}"></div>
       <div class="form-group"><label class="form-label">Estimated Time</label>
         <div class="chip-row" id="timeChipRow">${timeChipsHtml}</div>

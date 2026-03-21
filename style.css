@@ -1812,3 +1812,100 @@ textarea.input-field {
 .btn-remove-friend:active {
     color: var(--danger);
 }
+
+/* ============================================
+   DIFFICULTY DISPUTES
+   ============================================ */
+.btn-contest {
+    background: rgba(255, 179, 0, 0.1);
+    border: 1px solid rgba(255, 179, 0, 0.25);
+    color: #ffb300;
+    border-radius: 7px;
+    padding: 3px 8px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.15s;
+    white-space: nowrap;
+}
+.btn-contest:active {
+    background: rgba(255, 179, 0, 0.25);
+}
+
+.dispute-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    color: #ffb300;
+    background: rgba(255, 179, 0, 0.08);
+    border: 1px solid rgba(255, 179, 0, 0.2);
+    border-radius: 20px;
+    padding: 2px 8px;
+    margin-top: 4px;
+}
+
+.dispute-task-preview {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    margin-bottom: 16px;
+}
+
+.dispute-votes-card {
+    background: rgba(255, 179, 0, 0.05);
+    border: 1px solid rgba(255, 179, 0, 0.2);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    margin-bottom: 16px;
+}
+.dispute-vote-count {
+    flex: 1;
+    text-align: center;
+    padding: 10px;
+    border-radius: 10px;
+    font-weight: 700;
+}
+.dispute-vote-count.up {
+    background: rgba(255, 71, 87, 0.1);
+    color: var(--danger);
+    border: 1px solid rgba(255, 71, 87, 0.2);
+}
+.dispute-vote-count.down {
+    background: rgba(46, 213, 115, 0.1);
+    color: var(--success);
+    border: 1px solid rgba(46, 213, 115, 0.2);
+}
+
+.btn-dispute-vote {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 16px 12px;
+    border-radius: var(--radius);
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: var(--font);
+}
+.btn-dispute-vote.up {
+    background: rgba(255, 71, 87, 0.08);
+    border-color: rgba(255, 71, 87, 0.25);
+    color: var(--danger);
+}
+.btn-dispute-vote.up:active {
+    background: rgba(255, 71, 87, 0.2);
+    transform: scale(0.97);
+}
+.btn-dispute-vote.down {
+    background: rgba(46, 213, 115, 0.08);
+    border-color: rgba(46, 213, 115, 0.25);
+    color: var(--success);
+}
+.btn-dispute-vote.down:active {
+    background: rgba(46, 213, 115, 0.2);
+    transform: scale(0.97);
+}

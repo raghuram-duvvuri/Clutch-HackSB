@@ -1625,13 +1625,11 @@ async function acceptFriend(theirId, theirName, theirEmoji) {
         await db
             .ref(`friends/${myId}/list/${theirId}`)
             .set({ id: theirId, name: theirName, emoji: theirEmoji });
-        await db
-            .ref(`friends/${theirId}/list/${myId}`)
-            .set({
-                id: myId,
-                name: state.profile.name,
-                emoji: state.profile.emoji,
-            });
+        await db.ref(`friends/${theirId}/list/${myId}`).set({
+            id: myId,
+            name: state.profile.name,
+            emoji: state.profile.emoji,
+        });
         // Clean up request nodes
         await db.ref(`friends/${myId}/incoming/${theirId}`).remove();
         await db.ref(`friends/${theirId}/outgoing/${myId}`).remove();
@@ -2156,14 +2154,31 @@ async function openGroupDetail(code) {
                     const cat =
                         CATEGORIES.find((c) => c.id === t.category) ||
                         CATEGORIES[0];
+                    const disputeKey = `dispute_${code}_${m.id}_${t.id}`;
+                    const existingDispute = g.disputes?.[m.id]?.[t.id];
+                    const myVote = existingDispute?.votes?.[myId];
+                    const voteCount = existingDispute
+                        ? Object.keys(existingDispute.votes || {}).length
+                        : 0;
+                    const upVotes = existingDispute
+                        ? Object.values(existingDispute.votes || {}).filter(
+                              (v) => v === "up",
+                          ).length
+                        : 0;
+                    const canContest = !isMe && !t.completed;
+                    const isContested = !!existingDispute;
+
                     html += `<div class="group-task-row">
                         <div class="task-diff-bar" style="background:${diffColor(t.difficulty)};width:4px;height:32px;border-radius:2px;flex-shrink:0;"></div>
                         <div style="flex:1;min-width:0;">
                             <div style="font-size:13px;font-weight:600;${t.completed ? "color:var(--text-muted);text-decoration:line-through;" : ""}">${esc(t.title)}</div>
                             <div style="font-size:11px;color:var(--text-dim);">${cat.icon} ${cat.label} · ${diffLabel(t.difficulty)} · ${timeUntil(t.deadline)}</div>
+                            ${isContested ? `<div class="dispute-pill">⚖️ Contested · ${upVotes}↑ ${voteCount - upVotes}↓${myVote ? ` · You voted ${myVote === "up" ? "too easy" : "fair"}` : ""}</div>` : ""}
                         </div>
-                        <div style="text-align:right;flex-shrink:0;">
+                        <div style="text-align:right;flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
                             ${t.completed ? '<span style="color:var(--success);">✓</span>' : `<span style="font-family:var(--mono);font-size:12px;color:var(--neon);">+${t.points}</span>`}
+                            ${canContest && !myVote ? `<button class="btn-contest" onclick="event.stopPropagation();openDisputeModal('${code}','${m.id}','${t.id}',${t.difficulty},${t.points},'${esc(t.title).replace(/'/g, "\\'")}')">⚖️</button>` : ""}
+                            ${canContest && myVote ? `<span style="font-size:10px;color:var(--text-muted);">voted</span>` : ""}
                         </div>
                     </div>`;
                 });
@@ -2174,6 +2189,186 @@ async function openGroupDetail(code) {
         sheet.innerHTML = html;
     } catch (err) {
         sheet.innerHTML = `<div class="modal-header"><h2>Error</h2><button class="modal-close" onclick="closeAddTask()">×</button></div><p style="color:var(--danger);">${err.message}</p>`;
+    }
+}
+
+// ============================================
+// DIFFICULTY DISPUTES
+// ============================================
+async function openDisputeModal(
+    groupCode,
+    ownerId,
+    taskId,
+    currentDiff,
+    currentPts,
+    taskTitle,
+) {
+    const modal = document.getElementById("addTaskModal");
+    const sheet = document.getElementById("modalSheet");
+    const myId = getMyId();
+
+    // Load existing dispute if any
+    let existingDispute = null;
+    try {
+        const snap = await db
+            .ref(`groups/${groupCode}/disputes/${ownerId}/${taskId}`)
+            .once("value");
+        existingDispute = snap.val();
+    } catch (e) {}
+
+    const myVote = existingDispute?.votes?.[myId];
+    const votes = existingDispute?.votes
+        ? Object.values(existingDispute.votes)
+        : [];
+    const upVotes = votes.filter((v) => v === "up").length;
+    const downVotes = votes.filter((v) => v === "down").length;
+
+    sheet.innerHTML = `
+        <div class="modal-header"><h2>⚖️ Dispute Difficulty</h2><button class="modal-close" onclick="closeAddTask()">×</button></div>
+        <div class="dispute-task-preview">
+            <div style="font-size:13px;color:var(--text-muted);margin-bottom:4px;">Task in question</div>
+            <div style="font-size:15px;font-weight:700;">${taskTitle}</div>
+            <div style="display:flex;align-items:center;gap:10px;margin-top:10px;">
+                <div style="font-size:28px;font-weight:900;color:${diffColor(currentDiff)};">${currentDiff}</div>
+                <div>
+                    <div style="font-size:13px;font-weight:700;color:${diffColor(currentDiff)};">${diffLabel(currentDiff)}</div>
+                    <div style="font-size:11px;color:var(--text-muted);">AI-rated difficulty · +${currentPts} pts</div>
+                </div>
+            </div>
+        </div>
+
+        ${
+            existingDispute
+                ? `
+        <div class="dispute-votes-card">
+            <div style="font-size:12px;font-weight:700;color:var(--text-muted);letter-spacing:1px;margin-bottom:10px;">CURRENT VOTES</div>
+            <div style="display:flex;gap:12px;">
+                <div class="dispute-vote-count up">
+                    <div style="font-size:22px;font-weight:900;">${upVotes}</div>
+                    <div style="font-size:11px;">Too Easy</div>
+                </div>
+                <div class="dispute-vote-count down">
+                    <div style="font-size:22px;font-weight:900;">${downVotes}</div>
+                    <div style="font-size:11px;">Fair Rating</div>
+                </div>
+            </div>
+            ${existingDispute.resolved ? `<div style="margin-top:10px;font-size:13px;color:var(--neon);font-weight:700;">✓ Resolved — difficulty ${existingDispute.resolvedDiff > currentDiff ? `raised to ${existingDispute.resolvedDiff}` : "kept as-is"}</div>` : ""}
+        </div>`
+                : ""
+        }
+
+        ${
+            myVote
+                ? `
+        <div style="text-align:center;padding:16px;color:var(--text-muted);font-size:13px;">You already voted: <strong style="color:var(--text);">${myVote === "up" ? "Too Easy" : "Fair Rating"}</strong></div>
+        `
+                : `
+        <div style="font-size:13px;color:var(--text-dim);margin-bottom:16px;line-height:1.5;">
+            Do you think this difficulty rating is too easy? If the majority votes <strong>"Too Easy"</strong>, the difficulty will be raised and the task owner earns fewer points.
+        </div>
+        <div style="display:flex;gap:10px;">
+            <button class="btn-dispute-vote up" onclick="castDisputeVote('${groupCode}','${ownerId}','${taskId}',${currentDiff},${currentPts},'up')">
+                <div style="font-size:20px;">📈</div>
+                <div style="font-size:13px;font-weight:700;">Too Easy</div>
+                <div style="font-size:11px;opacity:0.7;">Raise difficulty</div>
+            </button>
+            <button class="btn-dispute-vote down" onclick="castDisputeVote('${groupCode}','${ownerId}','${taskId}',${currentDiff},${currentPts},'down')">
+                <div style="font-size:20px;">✅</div>
+                <div style="font-size:13px;font-weight:700;">Fair Rating</div>
+                <div style="font-size:11px;opacity:0.7;">Keep as-is</div>
+            </button>
+        </div>`
+        }`;
+
+    modal.classList.add("open");
+}
+
+async function castDisputeVote(
+    groupCode,
+    ownerId,
+    taskId,
+    currentDiff,
+    currentPts,
+    vote,
+) {
+    const myId = getMyId();
+    const disputePath = `groups/${groupCode}/disputes/${ownerId}/${taskId}`;
+
+    try {
+        // Record the vote
+        await db.ref(`${disputePath}/votes/${myId}`).set(vote);
+        await db.ref(`${disputePath}/taskId`).set(taskId);
+        await db.ref(`${disputePath}/ownerId`).set(ownerId);
+        await db.ref(`${disputePath}/originalDiff`).set(currentDiff);
+        await db.ref(`${disputePath}/createdAt`).set(Date.now());
+
+        // Fetch updated votes to check if we should resolve
+        const snap = await db.ref(disputePath).once("value");
+        const dispute = snap.val();
+        const votes = Object.values(dispute.votes || {});
+        const upVotes = votes.filter((v) => v === "up").length;
+        const downVotes = votes.filter((v) => v === "down").length;
+        const total = votes.length;
+
+        // Fetch group member count for quorum
+        const membersSnap = await db
+            .ref(`groups/${groupCode}/members`)
+            .once("value");
+        const memberCount = membersSnap.val()
+            ? Object.keys(membersSnap.val()).length
+            : 1;
+        const otherCount = Math.max(1, memberCount - 1); // exclude owner
+
+        // Resolve if: all others voted, or clear majority (>60%) with at least 2 votes
+        const allVoted = total >= otherCount;
+        const clearMajority =
+            total >= 2 && (upVotes / total > 0.6 || downVotes / total > 0.6);
+
+        if (allVoted || clearMajority) {
+            const tooEasyWins = upVotes > downVotes;
+            const newDiff = tooEasyWins
+                ? Math.min(10, currentDiff + 2)
+                : currentDiff;
+            const newPts = tooEasyWins
+                ? calcPoints(newDiff, 60, Date.now() + 86400000, Date.now())
+                : currentPts;
+
+            await db.ref(`${disputePath}/resolved`).set(true);
+            await db.ref(`${disputePath}/resolvedDiff`).set(newDiff);
+            await db.ref(`${disputePath}/resolvedAt`).set(Date.now());
+
+            if (tooEasyWins && newDiff !== currentDiff) {
+                // Update the task difficulty in the owner's memberTasks
+                const tasksSnap = await db
+                    .ref(`groups/${groupCode}/memberTasks/${ownerId}`)
+                    .once("value");
+                const tasksRaw = tasksSnap.val();
+                const tasksArr = tasksRaw
+                    ? Array.isArray(tasksRaw)
+                        ? tasksRaw
+                        : Object.values(tasksRaw)
+                    : [];
+                const updated = tasksArr.map((t) =>
+                    t.id === taskId
+                        ? { ...t, difficulty: newDiff, points: newPts }
+                        : t,
+                );
+                await db
+                    .ref(`groups/${groupCode}/memberTasks/${ownerId}`)
+                    .set(updated);
+            }
+
+            closeAddTask();
+            const msg =
+                tooEasyWins && newDiff !== currentDiff
+                    ? `⚖️ Dispute resolved! Difficulty raised from ${currentDiff} → ${newDiff}`
+                    : `⚖️ Dispute resolved! Rating kept as ${currentDiff}`;
+            alert(msg);
+        } else {
+            closeAddTask();
+        }
+    } catch (err) {
+        alert("Failed to cast vote: " + err.message);
     }
 }
 

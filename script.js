@@ -453,6 +453,7 @@ function renderTasks() {
           <div class="task-meta">
             <span style="color:${cat.color}">${cat.icon} ${cat.label}</span>
             <span class="${t.deadline < Date.now() && !t.completed ? "overdue" : ""}">⏱ ${timeUntil(t.deadline)}</span>
+            ${t.assignedGroup ? `<span class="task-group-badge">👥 Group</span>` : ""}
           </div>
         </div>
         <div class="task-right">
@@ -464,9 +465,10 @@ function renderTasks() {
       <div class="task-expanded">
         ${t.description ? `<div class="task-desc">${esc(t.description)}</div>` : ""}
         <div class="task-detail-meta">
-          <span>⏱ ${t.timeFrameMinutes}min</span>
+          <span>⏱ ${t.timeFrameMinutes >= 60 ? Math.floor(t.timeFrameMinutes / 60) + "h" + (t.timeFrameMinutes % 60 ? " " + (t.timeFrameMinutes % 60) + "m" : "") : t.timeFrameMinutes + "min"}</span>
           <span>📊 ${diffLabel(t.difficulty)}</span>
           <span>${MODES.find((m) => m.id === t.competitionMode)?.icon || "🔒"} ${MODES.find((m) => m.id === t.competitionMode)?.label || "Private"}</span>
+          ${t.assignedGroup ? `<span class="task-group-badge">👥 <span class="grp-tag-${t.assignedGroup}">${t.assignedGroup}</span></span>` : ""}
         </div>
         ${t.flagged ? `<div class="flag-warning">⚠️ ${t.flagReason || "Flagged for review"} — No points awarded</div>` : ""}
         ${
@@ -482,6 +484,24 @@ function renderTasks() {
     </div>`;
         })
         .join("");
+
+    // Resolve group names for task badges
+    const groupCodesToResolve = [
+        ...new Set(
+            filtered.filter((t) => t.assignedGroup).map((t) => t.assignedGroup),
+        ),
+    ];
+    groupCodesToResolve.forEach(async (code) => {
+        try {
+            const snap = await db.ref(`groups/${code}/name`).once("value");
+            const name = snap.val();
+            if (name) {
+                document
+                    .querySelectorAll(`.grp-tag-${code}`)
+                    .forEach((el) => (el.textContent = name));
+            }
+        } catch (e) {}
+    });
 }
 
 function toggleTask(id) {
@@ -539,8 +559,10 @@ let addForm = {
     desc: "",
     deadline: Date.now() + 86400000,
     timeMins: 60,
+    customTime: false,
     category: "general",
     mode: "private",
+    assignedGroup: "", // group code or "" for none
     difficulty: 5,
     reasoning: "",
     tips: "",
@@ -553,8 +575,10 @@ function openAddTask() {
         desc: "",
         deadline: Date.now() + 86400000,
         timeMins: 60,
+        customTime: false,
         category: "general",
         mode: "private",
+        assignedGroup: "",
         difficulty: 5,
         reasoning: "",
         tips: "",
@@ -571,6 +595,25 @@ function renderAddModal() {
     if (addStep === 0) {
         const deadlineDate = new Date(addForm.deadline);
         const deadlineStr = deadlineDate.toISOString().slice(0, 16);
+
+        // Build group options for dropdown
+        const groupCodes = state.myGroupCodes || [];
+        let groupOptionsHtml = `<button class="chip${!addForm.assignedGroup ? " active" : ""}" data-grp="">🔒 Personal only</button>`;
+
+        // We'll load group names async, but for now show codes
+        // The names get filled in after render
+        groupCodes.forEach((code) => {
+            groupOptionsHtml += `<button class="chip${addForm.assignedGroup === code ? " active" : ""}" data-grp="${code}">👥 <span class="grp-name-${code}">${code}</span></button>`;
+        });
+
+        // Build time chips — include Custom option
+        const timeChipsHtml =
+            TIME_OPTIONS.map(
+                (o) =>
+                    `<button class="chip${!addForm.customTime && addForm.timeMins === o.v ? " active" : ""}" data-time="${o.v}">${o.l}</button>`,
+            ).join("") +
+            `<button class="chip${addForm.customTime ? " active" : ""}" data-time="custom">Custom</button>`;
+
         sheet.innerHTML = `
       <div class="modal-header"><h2>New Task</h2><button class="modal-close" onclick="closeAddTask()">×</button></div>
       <div class="form-group"><label class="form-label">Title</label>
@@ -582,35 +625,95 @@ function renderAddModal() {
       <div class="form-group"><label class="form-label">Deadline</label>
         <input type="datetime-local" class="input-field" id="atDeadline" value="${deadlineStr}"></div>
       <div class="form-group"><label class="form-label">Estimated Time</label>
-        <div class="chip-row">${TIME_OPTIONS.map((o) => `<button class="chip${addForm.timeMins === o.v ? " active" : ""}" data-time="${o.v}">${o.l}</button>`).join("")}</div></div>
+        <div class="chip-row" id="timeChipRow">${timeChipsHtml}</div>
+        <div id="customTimeRow" style="margin-top:8px;display:${addForm.customTime ? "flex" : "none"};gap:8px;align-items:center;">
+            <input class="input-field" id="atCustomHours" type="number" min="0" max="99" placeholder="0" value="${addForm.customTime ? Math.floor(addForm.timeMins / 60) : ""}" style="width:70px;text-align:center;">
+            <span style="font-size:13px;color:var(--text-dim);font-weight:600;">hrs</span>
+            <input class="input-field" id="atCustomMins" type="number" min="0" max="59" step="5" placeholder="0" value="${addForm.customTime ? addForm.timeMins % 60 : ""}" style="width:70px;text-align:center;">
+            <span style="font-size:13px;color:var(--text-dim);font-weight:600;">min</span>
+        </div>
+      </div>
       <div class="form-group"><label class="form-label">Visibility</label>
         <div class="chip-row">${MODES.map((m) => `<button class="chip${addForm.mode === m.id ? " active" : ""}" data-mode="${m.id}">${m.icon} ${m.label}</button>`).join("")}</div></div>
+      ${
+          groupCodes.length > 0
+              ? `<div class="form-group"><label class="form-label">📌 Add to Group</label>
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">Task will count toward the group's leaderboard & races</p>
+        <div class="chip-row" id="groupChipRow">${groupOptionsHtml}</div>
+      </div>`
+              : ""
+      }
       <button class="btn-primary" id="atNext">Rate Difficulty →</button>`;
 
-        // Events
+        // Load group names from Firebase
+        groupCodes.forEach(async (code) => {
+            try {
+                const snap = await db.ref(`groups/${code}/name`).once("value");
+                const name = snap.val();
+                if (name) {
+                    const el = sheet.querySelector(`.grp-name-${code}`);
+                    if (el) el.textContent = name;
+                }
+            } catch (e) {}
+        });
+
+        // Events — Category
         sheet.querySelectorAll(".cat-chip").forEach((b) =>
             b.addEventListener("click", () => {
                 addForm.category = b.dataset.cat;
                 renderAddModal();
             }),
         );
+
+        // Events — Time (with custom support)
         sheet.querySelectorAll("[data-time]").forEach((b) =>
             b.addEventListener("click", () => {
-                addForm.timeMins = +b.dataset.time;
+                if (b.dataset.time === "custom") {
+                    addForm.customTime = true;
+                } else {
+                    addForm.customTime = false;
+                    addForm.timeMins = +b.dataset.time;
+                }
                 renderAddModal();
             }),
         );
+
+        // Events — Mode
         sheet.querySelectorAll("[data-mode]").forEach((b) =>
             b.addEventListener("click", () => {
                 addForm.mode = b.dataset.mode;
                 renderAddModal();
             }),
         );
+
+        // Events — Group assignment
+        sheet.querySelectorAll("[data-grp]").forEach((b) =>
+            b.addEventListener("click", () => {
+                addForm.assignedGroup = b.dataset.grp;
+                sheet
+                    .querySelectorAll("[data-grp]")
+                    .forEach((x) => x.classList.remove("active"));
+                b.classList.add("active");
+            }),
+        );
+
+        // Events — Next button
         sheet.querySelector("#atNext").addEventListener("click", async () => {
             addForm.title = sheet.querySelector("#atTitle").value.trim();
             addForm.desc = sheet.querySelector("#atDesc").value.trim();
             const dl = sheet.querySelector("#atDeadline").value;
             if (dl) addForm.deadline = new Date(dl).getTime();
+
+            // Read custom time if active
+            if (addForm.customTime) {
+                const h =
+                    parseInt(sheet.querySelector("#atCustomHours")?.value) || 0;
+                const m =
+                    parseInt(sheet.querySelector("#atCustomMins")?.value) || 0;
+                addForm.timeMins = h * 60 + m;
+                if (addForm.timeMins < 1) addForm.timeMins = 1;
+            }
+
             if (!addForm.title) {
                 sheet.querySelector("#atTitle").style.borderColor =
                     "var(--danger)";
@@ -633,8 +736,15 @@ function renderAddModal() {
             renderDiffStep();
         });
     } else {
+        // Show which group the task will go to
+        let groupBadge = "";
+        if (addForm.assignedGroup) {
+            groupBadge = `<div style="text-align:center;margin-bottom:12px;"><span class="race-badge live" style="margin:0;">📌 Will be added to group <span class="grp-assign-name">${addForm.assignedGroup}</span></span></div>`;
+        }
+
         sheet.innerHTML = `
       <div class="modal-header"><h2>Difficulty</h2><button class="modal-close" onclick="closeAddTask()">×</button></div>
+      ${groupBadge}
       <div class="glow-card">
         <div class="loading-indicator" id="diffLoading"><div class="spinner"></div><span style="font-size:14px;color:var(--text-dim);">AI is analyzing…</span></div>
         <div id="diffResult" style="display:none;">
@@ -657,6 +767,19 @@ function renderAddModal() {
         <button class="btn-secondary" onclick="addStep=0;renderAddModal();">Back</button>
         <button class="btn-primary" id="atSave">Add Task</button>
       </div>`;
+
+        // Load group name for the badge
+        if (addForm.assignedGroup) {
+            db.ref(`groups/${addForm.assignedGroup}/name`)
+                .once("value")
+                .then((snap) => {
+                    const name = snap.val();
+                    const el = sheet.querySelector(".grp-assign-name");
+                    if (el && name) el.textContent = name;
+                })
+                .catch(() => {});
+        }
+
         // Manual buttons
         const row = sheet.querySelector("#manualRow");
         for (let i = 1; i <= 10; i++) {
@@ -725,10 +848,46 @@ function saveNewTask() {
         competitionMode: addForm.mode,
         flagged: false,
         flagReason: "",
+        assignedGroup: addForm.assignedGroup || "",
     };
     state.tasks.push(t);
     save();
     syncMyTasksToFirebase();
+
+    // If assigned to a specific group, push this task directly to that group too
+    if (t.assignedGroup) {
+        const myId = getMyId();
+        const taskData = {
+            id: t.id,
+            title: t.title,
+            description: t.description,
+            deadline: t.deadline,
+            difficulty: t.difficulty,
+            points: t.points,
+            completed: t.completed,
+            completedAt: t.completedAt,
+            category: t.category,
+            flagged: t.flagged,
+            timeFrameMinutes: t.timeFrameMinutes,
+        };
+        // We already sync all tasks, but this ensures immediate visibility
+        db.ref(`groups/${t.assignedGroup}/memberTasks/${myId}`)
+            .once("value")
+            .then((snap) => {
+                const existing = snap.val();
+                const arr = existing
+                    ? Array.isArray(existing)
+                        ? existing
+                        : Object.values(existing)
+                    : [];
+                arr.push(taskData);
+                db.ref(`groups/${t.assignedGroup}/memberTasks/${myId}`).set(
+                    arr,
+                );
+            })
+            .catch(() => {});
+    }
+
     closeAddTask();
     switchTab("tasks");
 }

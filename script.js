@@ -512,6 +512,7 @@ function completeTask(id) {
         state.profile.level = calcLevel(state.profile.totalPoints);
     }
     save();
+    syncMyTasksToFirebase();
     renderTasks();
 }
 
@@ -519,6 +520,7 @@ function deleteTask(id) {
     if (!confirm("Delete this task?")) return;
     state.tasks = state.tasks.filter((t) => t.id !== id);
     save();
+    syncMyTasksToFirebase();
     renderTasks();
 }
 
@@ -726,6 +728,7 @@ function saveNewTask() {
     };
     state.tasks.push(t);
     save();
+    syncMyTasksToFirebase();
     closeAddTask();
     switchTab("tasks");
 }
@@ -923,49 +926,623 @@ function renderLeaderboard(el) {
     el.innerHTML = html;
 }
 
-function renderGroups(el) {
-    let html = "";
-    if (!state.groups.length) {
-        html +=
-            '<div class="empty-state" style="padding:40px 0;"><div class="emoji">👥</div><h3>No groups yet</h3><p>Create or join a group to compete with friends</p></div>';
-    } else {
-        state.groups.forEach((g) => {
-            html += `<div class="group-card">
-        <div class="group-header">
-          <div><div class="group-name">${esc(g.name)}</div><div class="group-members">${g.members} members</div></div>
-          <div><div class="group-code-label">CODE</div><div class="group-code">${g.code}</div></div>
-        </div>
-        ${g.timeLimitDays > 0 ? `<div class="group-time">⏱ ${g.timeLimitDays} day competition</div>` : ""}
-        <div class="group-avatars">${g.avatars.map((a) => `<span class="group-avatar">${a}</span>`).join("")}</div>
-      </div>`;
-        });
-    }
-    html += `<div class="group-actions">
-    <button class="btn-primary" onclick="createGroup()">Create Group</button>
-    <button class="btn-secondary" style="flex:1;text-align:center;" onclick="alert('Enter a group code to join — coming soon!')">Join Group</button>
-  </div>`;
-    el.innerHTML = html;
-}
+// ============================================
+// FIREBASE GROUP SYSTEM
+// ============================================
+const db = firebase.database();
 
-function createGroup() {
-    const name = prompt("Group name:");
-    if (!name) return;
-    const days = prompt(
-        "Competition time limit in days (leave blank for none):",
-    );
+function genGroupCode() {
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     let code = "";
     for (let i = 0; i < 6; i++)
         code += chars[Math.floor(Math.random() * chars.length)];
-    state.groups.push({
-        name,
-        code,
-        members: 1,
-        timeLimitDays: days ? parseInt(days) : -1,
-        avatars: [state.profile.emoji],
+    return code;
+}
+
+function getMyId() {
+    if (!state.profile.id) {
+        state.profile.id =
+            crypto.randomUUID?.() || Math.random().toString(36).substr(2, 12);
+        save();
+    }
+    return state.profile.id;
+}
+
+// Push my tasks to every Firebase group I'm in
+function syncMyTasksToFirebase() {
+    const myId = getMyId();
+    const myTasks = state.tasks.map((t) => ({
+        id: t.id,
+        title: t.title,
+        description: t.description || "",
+        deadline: t.deadline,
+        difficulty: t.difficulty,
+        points: t.points,
+        completed: t.completed,
+        completedAt: t.completedAt || 0,
+        category: t.category,
+        flagged: t.flagged || false,
+        timeFrameMinutes: t.timeFrameMinutes,
+    }));
+    const myInfo = {
+        id: myId,
+        name: state.profile.name,
+        emoji: state.profile.emoji,
+    };
+
+    // Update every group I belong to
+    (state.myGroupCodes || []).forEach((code) => {
+        db.ref(`groups/${code}/members/${myId}`).set(myInfo);
+        db.ref(`groups/${code}/memberTasks/${myId}`).set(myTasks);
     });
-    save();
-    renderCompete();
+}
+
+function getMemberPoints(memberTasks) {
+    if (!memberTasks || !Array.isArray(memberTasks)) return 0;
+    return memberTasks
+        .filter((t) => t.completed && !t.flagged)
+        .reduce((s, t) => s + (t.points || 0), 0);
+}
+
+// Active Firebase listeners (so we can detach)
+let groupListeners = {};
+
+function listenToGroup(code) {
+    if (groupListeners[code]) return; // already listening
+    groupListeners[code] = db.ref(`groups/${code}`);
+    groupListeners[code].on("value", () => {
+        // Re-render if we're on the compete tab
+        if (
+            state.currentTab === "compete" &&
+            state.competeSection === "groups"
+        ) {
+            renderCompete();
+        }
+    });
+}
+
+function stopListeningToGroup(code) {
+    if (groupListeners[code]) {
+        groupListeners[code].off();
+        delete groupListeners[code];
+    }
+}
+
+// ============================================
+// RENDER GROUPS — reads from Firebase
+// ============================================
+async function renderGroups(el) {
+    const myId = getMyId();
+    const codes = state.myGroupCodes || [];
+
+    if (!codes.length) {
+        el.innerHTML = `<div class="empty-state" style="padding:40px 0;">
+            <div class="emoji">👥</div><h3>No groups yet</h3>
+            <p>Create or join a group to compete with friends</p>
+        </div>
+        <div class="group-actions">
+            <button class="btn-primary" onclick="openCreateGroupModal()">+ Create Group</button>
+            <button class="btn-secondary" style="flex:1;text-align:center;" onclick="openJoinGroupModal()">🔗 Join Group</button>
+        </div>`;
+        return;
+    }
+
+    el.innerHTML = `<div style="text-align:center;padding:30px 0;"><div class="spinner"></div><div style="margin-top:8px;font-size:13px;color:var(--text-dim);">Loading groups...</div></div>`;
+
+    let html = "";
+
+    for (let ci = 0; ci < codes.length; ci++) {
+        const code = codes[ci];
+        try {
+            const snap = await db.ref(`groups/${code}`).once("value");
+            const g = snap.val();
+            if (!g) {
+                // Group was deleted from Firebase
+                state.myGroupCodes = state.myGroupCodes.filter(
+                    (c) => c !== code,
+                );
+                save();
+                stopListeningToGroup(code);
+                continue;
+            }
+
+            listenToGroup(code);
+
+            const members = g.members ? Object.values(g.members) : [];
+            const isCreator = g.creatorId === myId;
+
+            // Build ranked members
+            const ranked = members
+                .map((m) => {
+                    const tasks = g.memberTasks?.[m.id];
+                    const taskArr = tasks
+                        ? Array.isArray(tasks)
+                            ? tasks
+                            : Object.values(tasks)
+                        : [];
+                    return { ...m, pts: getMemberPoints(taskArr) };
+                })
+                .sort((a, b) => b.pts - a.pts);
+
+            // Check race winner
+            let raceHtml = "";
+            if (g.race && g.race.targetPoints) {
+                let winner = g.race.winnerId ? g.race : null;
+                if (!winner) {
+                    for (const m of ranked) {
+                        if (m.pts >= g.race.targetPoints) {
+                            // Write winner to Firebase
+                            db.ref(`groups/${code}/race`).update({
+                                winnerId: m.id,
+                                winnerName: m.name,
+                                wonAt: Date.now(),
+                            });
+                            winner = { winnerId: m.id, winnerName: m.name };
+                            break;
+                        }
+                    }
+                }
+                if (winner && winner.winnerId) {
+                    raceHtml = `<div class="race-badge won">🏁 ${esc(winner.winnerName)} won! Reached ${g.race.targetPoints} pts</div>`;
+                } else {
+                    raceHtml = `<div class="race-badge live">🏁 Race to ${g.race.targetPoints} pts — in progress</div>`;
+                }
+            }
+
+            let timeLimitHtml = "";
+            if (g.timeLimitDays > 0 && g.createdAt) {
+                const elapsed = Math.floor(
+                    (Date.now() - g.createdAt) / 86400000,
+                );
+                const remaining = Math.max(0, g.timeLimitDays - elapsed);
+                timeLimitHtml = `<div class="group-time">⏱ ${remaining}d remaining of ${g.timeLimitDays}d competition</div>`;
+            }
+
+            html += `<div class="group-card">
+                <div class="group-header">
+                    <div>
+                        <div class="group-name">${esc(g.name)}</div>
+                        <div class="group-members">${members.length} member${members.length !== 1 ? "s" : ""}</div>
+                    </div>
+                    <div style="text-align:right;">
+                        <div class="group-code-label">CODE</div>
+                        <div class="group-code" style="cursor:pointer;" onclick="event.stopPropagation();navigator.clipboard.writeText('${code}');this.textContent='Copied!';setTimeout(()=>this.textContent='${code}',1200);">${code}</div>
+                    </div>
+                </div>
+                ${raceHtml}${timeLimitHtml}
+                <div class="group-lb">`;
+
+            ranked.forEach((m, ri) => {
+                const isMe = m.id === myId;
+                const medals = ["🥇", "🥈", "🥉"];
+                const medal = ri < 3 ? medals[ri] : `#${ri + 1}`;
+                html += `<div class="group-lb-row${isMe ? " me" : ""}" onclick="event.stopPropagation();openGroupDetail('${code}')">
+                    <span class="group-lb-rank">${medal}</span>
+                    <span class="group-lb-emoji">${m.emoji}</span>
+                    <span class="group-lb-name${isMe ? " me-name" : ""}">${esc(m.name)}${isMe ? " (you)" : ""}</span>
+                    <span class="group-lb-pts">${m.pts} pts</span>
+                </div>`;
+            });
+
+            html += `</div><div class="group-card-actions">
+                <button class="btn-secondary" onclick="event.stopPropagation();openGroupDetail('${code}')" style="flex:1;text-align:center;">View Tasks</button>`;
+            if (isCreator) {
+                html += `<button class="btn-delete" onclick="event.stopPropagation();deleteGroup('${code}')">🗑</button>`;
+            } else {
+                html += `<button class="btn-delete" onclick="event.stopPropagation();leaveGroup('${code}')" style="font-size:12px;">Leave</button>`;
+            }
+            html += `</div></div>`;
+        } catch (err) {
+            console.error("Error loading group", code, err);
+            html += `<div class="card" style="margin-bottom:12px;color:var(--text-dim);font-size:13px;">Failed to load group ${code}</div>`;
+        }
+    }
+
+    html += `<div class="group-actions">
+        <button class="btn-primary" onclick="openCreateGroupModal()">+ Create Group</button>
+        <button class="btn-secondary" style="flex:1;text-align:center;" onclick="openJoinGroupModal()">🔗 Join Group</button>
+    </div>`;
+
+    el.innerHTML = html;
+}
+
+// ============================================
+// CREATE GROUP
+// ============================================
+function openCreateGroupModal() {
+    const modal = document.getElementById("addTaskModal");
+    const sheet = document.getElementById("modalSheet");
+    sheet.innerHTML = `
+        <div class="modal-header"><h2>Create Group</h2><button class="modal-close" onclick="closeAddTask()">×</button></div>
+        <div class="form-group">
+            <label class="form-label">Group Name</label>
+            <input class="input-field" id="cgName" placeholder="e.g., Study Squad" maxlength="30">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Time Limit (optional)</label>
+            <div class="chip-row">
+                <button class="chip active" data-days="0">No limit</button>
+                <button class="chip" data-days="7">7 days</button>
+                <button class="chip" data-days="14">14 days</button>
+                <button class="chip" data-days="30">30 days</button>
+            </div>
+        </div>
+        <div class="form-group">
+            <label class="form-label">🏁 Race Game (optional)</label>
+            <p style="font-size:12px;color:var(--text-dim);margin-bottom:8px;">First person to reach the target points wins!</p>
+            <div class="chip-row" id="cgRaceChips">
+                <button class="chip active" data-race="0">No race</button>
+                <button class="chip" data-race="500">500 pts</button>
+                <button class="chip" data-race="1000">1000 pts</button>
+                <button class="chip" data-race="2000">2000 pts</button>
+                <button class="chip" data-race="custom">Custom</button>
+            </div>
+            <div id="cgCustomRaceRow" style="margin-top:8px;display:none;">
+                <input class="input-field" id="cgCustomRace" type="number" placeholder="Custom point target" min="100" step="50">
+            </div>
+        </div>
+        <button class="btn-primary" id="cgSubmit">Create Group</button>`;
+
+    let selectedDays = 0,
+        selectedRace = 0,
+        customRace = false;
+
+    sheet.querySelectorAll("[data-days]").forEach((b) =>
+        b.addEventListener("click", () => {
+            selectedDays = +b.dataset.days;
+            sheet
+                .querySelectorAll("[data-days]")
+                .forEach((x) => x.classList.remove("active"));
+            b.classList.add("active");
+        }),
+    );
+
+    sheet.querySelectorAll("[data-race]").forEach((b) =>
+        b.addEventListener("click", () => {
+            if (b.dataset.race === "custom") {
+                customRace = true;
+                document.getElementById("cgCustomRaceRow").style.display =
+                    "block";
+            } else {
+                customRace = false;
+                selectedRace = +b.dataset.race;
+                document.getElementById("cgCustomRaceRow").style.display =
+                    "none";
+            }
+            sheet
+                .querySelectorAll("[data-race]")
+                .forEach((x) => x.classList.remove("active"));
+            b.classList.add("active");
+        }),
+    );
+
+    sheet.querySelector("#cgSubmit").addEventListener("click", async () => {
+        const name = sheet.querySelector("#cgName").value.trim();
+        if (!name) {
+            sheet.querySelector("#cgName").style.borderColor = "var(--danger)";
+            return;
+        }
+
+        let raceTarget = selectedRace;
+        if (customRace) {
+            raceTarget =
+                parseInt(document.getElementById("cgCustomRace").value) || 0;
+            if (raceTarget < 100) {
+                document.getElementById("cgCustomRace").style.borderColor =
+                    "var(--danger)";
+                return;
+            }
+        }
+
+        const myId = getMyId();
+        const code = genGroupCode();
+        const groupData = {
+            name,
+            code,
+            creatorId: myId,
+            createdAt: Date.now(),
+            timeLimitDays: selectedDays > 0 ? selectedDays : -1,
+            race:
+                raceTarget > 0
+                    ? {
+                          targetPoints: raceTarget,
+                          winnerId: null,
+                          winnerName: null,
+                          wonAt: null,
+                      }
+                    : null,
+            members: {
+                [myId]: {
+                    id: myId,
+                    name: state.profile.name,
+                    emoji: state.profile.emoji,
+                },
+            },
+            memberTasks: {
+                [myId]: state.tasks.map((t) => ({
+                    id: t.id,
+                    title: t.title,
+                    description: t.description || "",
+                    deadline: t.deadline,
+                    difficulty: t.difficulty,
+                    points: t.points,
+                    completed: t.completed,
+                    completedAt: t.completedAt || 0,
+                    category: t.category,
+                    flagged: t.flagged || false,
+                    timeFrameMinutes: t.timeFrameMinutes,
+                })),
+            },
+        };
+
+        try {
+            await db.ref(`groups/${code}`).set(groupData);
+            if (!state.myGroupCodes) state.myGroupCodes = [];
+            state.myGroupCodes.push(code);
+            save();
+            closeAddTask();
+            renderCompete();
+        } catch (err) {
+            alert("Failed to create group: " + err.message);
+        }
+    });
+
+    modal.classList.add("open");
+}
+
+// ============================================
+// JOIN GROUP
+// ============================================
+function openJoinGroupModal() {
+    const modal = document.getElementById("addTaskModal");
+    const sheet = document.getElementById("modalSheet");
+    sheet.innerHTML = `
+        <div class="modal-header"><h2>Join Group</h2><button class="modal-close" onclick="closeAddTask()">×</button></div>
+        <div class="form-group">
+            <label class="form-label">Enter Group Code</label>
+            <input class="input-field" id="jgCode" placeholder="e.g., AB3X7K" maxlength="6" style="font-family:var(--mono);font-size:20px;text-align:center;letter-spacing:4px;text-transform:uppercase;">
+        </div>
+        <div id="jgError" style="color:var(--danger);font-size:13px;text-align:center;display:none;margin-bottom:12px;"></div>
+        <div id="jgPreview" style="display:none;margin-bottom:16px;"></div>
+        <button class="btn-primary" id="jgSubmit">Join Group</button>`;
+
+    const codeInput = sheet.querySelector("#jgCode");
+    const errorEl = sheet.querySelector("#jgError");
+    const previewEl = sheet.querySelector("#jgPreview");
+    let foundGroup = null;
+
+    codeInput.addEventListener("input", async () => {
+        const code = codeInput.value.trim().toUpperCase();
+        errorEl.style.display = "none";
+        previewEl.style.display = "none";
+        foundGroup = null;
+
+        if (code.length === 6) {
+            try {
+                const snap = await db.ref(`groups/${code}`).once("value");
+                const g = snap.val();
+                if (!g) {
+                    errorEl.textContent = "No group found with this code";
+                    errorEl.style.display = "block";
+                    return;
+                }
+                const myId = getMyId();
+                const members = g.members ? Object.values(g.members) : [];
+                if (members.some((m) => m.id === myId)) {
+                    errorEl.textContent = "You're already in this group!";
+                    errorEl.style.display = "block";
+                    return;
+                }
+                foundGroup = { code, data: g };
+                previewEl.style.display = "block";
+                previewEl.innerHTML = `
+                    <div class="glow-card" style="text-align:center;">
+                        <div style="font-size:15px;font-weight:800;margin-bottom:4px;">${esc(g.name)}</div>
+                        <div style="font-size:13px;color:var(--text-dim);">${members.length} member${members.length !== 1 ? "s" : ""}</div>
+                        <div style="display:flex;justify-content:center;gap:4px;margin-top:8px;">
+                            ${members.map((m) => `<span style="font-size:20px;">${m.emoji}</span>`).join("")}
+                        </div>
+                        ${g.race && g.race.targetPoints ? `<div class="race-badge live" style="margin-top:8px;">🏁 Race to ${g.race.targetPoints} pts</div>` : ""}
+                    </div>`;
+            } catch (err) {
+                errorEl.textContent = "Error looking up group";
+                errorEl.style.display = "block";
+            }
+        }
+    });
+
+    sheet.querySelector("#jgSubmit").addEventListener("click", async () => {
+        if (!foundGroup) {
+            errorEl.textContent = "Enter a valid 6-character code";
+            errorEl.style.display = "block";
+            return;
+        }
+        const myId = getMyId();
+        const code = foundGroup.code;
+        try {
+            await db.ref(`groups/${code}/members/${myId}`).set({
+                id: myId,
+                name: state.profile.name,
+                emoji: state.profile.emoji,
+            });
+            await db.ref(`groups/${code}/memberTasks/${myId}`).set(
+                state.tasks.map((t) => ({
+                    id: t.id,
+                    title: t.title,
+                    description: t.description || "",
+                    deadline: t.deadline,
+                    difficulty: t.difficulty,
+                    points: t.points,
+                    completed: t.completed,
+                    completedAt: t.completedAt || 0,
+                    category: t.category,
+                    flagged: t.flagged || false,
+                    timeFrameMinutes: t.timeFrameMinutes,
+                })),
+            );
+            if (!state.myGroupCodes) state.myGroupCodes = [];
+            if (!state.myGroupCodes.includes(code))
+                state.myGroupCodes.push(code);
+            save();
+            closeAddTask();
+            renderCompete();
+        } catch (err) {
+            alert("Failed to join group: " + err.message);
+        }
+    });
+
+    modal.classList.add("open");
+}
+
+// ============================================
+// GROUP DETAIL VIEW
+// ============================================
+async function openGroupDetail(code) {
+    const modal = document.getElementById("addTaskModal");
+    const sheet = document.getElementById("modalSheet");
+    sheet.innerHTML = `<div style="text-align:center;padding:40px 0;"><div class="spinner"></div></div>`;
+    modal.classList.add("open");
+
+    try {
+        const snap = await db.ref(`groups/${code}`).once("value");
+        const g = snap.val();
+        if (!g) {
+            sheet.innerHTML = `<div class="modal-header"><h2>Group not found</h2><button class="modal-close" onclick="closeAddTask()">×</button></div>`;
+            return;
+        }
+
+        const myId = getMyId();
+        const members = g.members ? Object.values(g.members) : [];
+        const ranked = members
+            .map((m) => {
+                const tasks = g.memberTasks?.[m.id];
+                const taskArr = tasks
+                    ? Array.isArray(tasks)
+                        ? tasks
+                        : Object.values(tasks)
+                    : [];
+                return { ...m, pts: getMemberPoints(taskArr), tasks: taskArr };
+            })
+            .sort((a, b) => b.pts - a.pts);
+
+        let html = `<div class="modal-header"><h2>${esc(g.name)}</h2><button class="modal-close" onclick="closeAddTask()">×</button></div>`;
+
+        // Race progress
+        if (g.race && g.race.targetPoints) {
+            const target = g.race.targetPoints;
+            const hasWinner = g.race.winnerId;
+            html += `<div class="glow-card" style="margin-bottom:16px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                    <span style="font-size:14px;font-weight:700;">🏁 Race to ${target} pts</span>
+                    ${hasWinner ? `<span class="race-badge won" style="margin:0;">🏆 ${esc(g.race.winnerName)} won!</span>` : '<span class="race-badge live" style="margin:0;">Live</span>'}
+                </div>`;
+            ranked.forEach((m) => {
+                const progress = Math.min(100, (m.pts / target) * 100);
+                const isWinner = g.race.winnerId === m.id;
+                html += `<div style="margin-bottom:8px;">
+                    <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">
+                        <span>${m.emoji} ${esc(m.name)}${m.id === myId ? " (you)" : ""}${isWinner ? " 🏆" : ""}</span>
+                        <span style="font-family:var(--mono);color:var(--neon);">${m.pts}/${target}</span>
+                    </div>
+                    <div class="challenge-bar-track" style="margin:0;"><div class="challenge-bar-fill" style="width:${progress}%;${isWinner ? "background:var(--neon);" : ""}"></div></div>
+                </div>`;
+            });
+            html += `</div>`;
+        }
+
+        // Info cards
+        html += `<div style="display:flex;gap:8px;margin-bottom:16px;">
+            <div class="card" style="flex:1;text-align:center;">
+                <div style="font-size:11px;color:var(--text-muted);font-weight:700;letter-spacing:1px;">INVITE CODE</div>
+                <div style="font-family:var(--mono);font-size:18px;font-weight:700;color:var(--accent);margin-top:4px;cursor:pointer;" onclick="navigator.clipboard.writeText('${code}');this.textContent='Copied!';setTimeout(()=>this.textContent='${code}',1200);">${code}</div>
+            </div>
+            <div class="card" style="flex:1;text-align:center;">
+                <div style="font-size:11px;color:var(--text-muted);font-weight:700;letter-spacing:1px;">MEMBERS</div>
+                <div style="font-size:18px;font-weight:700;margin-top:4px;">${members.length}</div>
+            </div>
+        </div>`;
+
+        // Member task sections
+        ranked.forEach((m) => {
+            const isMe = m.id === myId;
+            const tasks = m.tasks.sort((a, b) => a.deadline - b.deadline);
+            const activeTasks = tasks.filter((t) => !t.completed);
+            const doneTasks = tasks.filter((t) => t.completed && !t.flagged);
+
+            html += `<div class="group-member-section">
+                <div class="group-member-header" onclick="this.parentElement.classList.toggle('collapsed')">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span style="font-size:22px;">${m.emoji}</span>
+                        <div>
+                            <div style="font-size:14px;font-weight:700;">${esc(m.name)}${isMe ? " (you)" : ""}</div>
+                            <div style="font-size:12px;color:var(--text-dim);">${m.pts} pts · ${doneTasks.length} done · ${activeTasks.length} active</div>
+                        </div>
+                    </div>
+                    <span class="group-member-chevron">›</span>
+                </div>
+                <div class="group-member-tasks">`;
+
+            if (!tasks.length) {
+                html += `<div style="padding:12px 0;text-align:center;font-size:13px;color:var(--text-muted);">No tasks yet</div>`;
+            } else {
+                tasks.forEach((t) => {
+                    const cat =
+                        CATEGORIES.find((c) => c.id === t.category) ||
+                        CATEGORIES[0];
+                    html += `<div class="group-task-row">
+                        <div class="task-diff-bar" style="background:${diffColor(t.difficulty)};width:4px;height:32px;border-radius:2px;flex-shrink:0;"></div>
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-size:13px;font-weight:600;${t.completed ? "color:var(--text-muted);text-decoration:line-through;" : ""}">${esc(t.title)}</div>
+                            <div style="font-size:11px;color:var(--text-dim);">${cat.icon} ${cat.label} · ${diffLabel(t.difficulty)} · ${timeUntil(t.deadline)}</div>
+                        </div>
+                        <div style="text-align:right;flex-shrink:0;">
+                            ${t.completed ? '<span style="color:var(--success);">✓</span>' : `<span style="font-family:var(--mono);font-size:12px;color:var(--neon);">+${t.points}</span>`}
+                        </div>
+                    </div>`;
+                });
+            }
+            html += `</div></div>`;
+        });
+
+        sheet.innerHTML = html;
+    } catch (err) {
+        sheet.innerHTML = `<div class="modal-header"><h2>Error</h2><button class="modal-close" onclick="closeAddTask()">×</button></div><p style="color:var(--danger);">${err.message}</p>`;
+    }
+}
+
+// ============================================
+// DELETE / LEAVE GROUP
+// ============================================
+async function deleteGroup(code) {
+    if (!confirm("Delete this group? All members will lose access.")) return;
+    try {
+        await db.ref(`groups/${code}`).remove();
+        state.myGroupCodes = (state.myGroupCodes || []).filter(
+            (c) => c !== code,
+        );
+        stopListeningToGroup(code);
+        save();
+        renderCompete();
+    } catch (err) {
+        alert("Failed to delete: " + err.message);
+    }
+}
+
+async function leaveGroup(code) {
+    if (!confirm("Leave this group?")) return;
+    const myId = getMyId();
+    try {
+        await db.ref(`groups/${code}/members/${myId}`).remove();
+        await db.ref(`groups/${code}/memberTasks/${myId}`).remove();
+        state.myGroupCodes = (state.myGroupCodes || []).filter(
+            (c) => c !== code,
+        );
+        stopListeningToGroup(code);
+        save();
+        renderCompete();
+    } catch (err) {
+        alert("Failed to leave: " + err.message);
+    }
 }
 
 function renderChallenges(el) {

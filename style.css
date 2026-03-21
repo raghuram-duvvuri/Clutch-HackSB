@@ -1301,6 +1301,132 @@ textarea.input-field {
 }
 
 /* ============================================
+   GROUPS — Enhanced
+   ============================================ */
+
+.group-lb {
+    margin: 12px 0 10px;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}
+.group-lb-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    background: var(--bg-subtle);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.group-lb-row:hover {
+    background: var(--card-hover);
+}
+.group-lb-row + .group-lb-row {
+    border-top: 1px solid var(--border);
+}
+.group-lb-row.me {
+    background: rgba(108, 92, 231, 0.08);
+}
+.group-lb-rank {
+    font-size: 14px;
+    width: 24px;
+    text-align: center;
+    flex-shrink: 0;
+}
+.group-lb-emoji {
+    font-size: 16px;
+    flex-shrink: 0;
+}
+.group-lb-name {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.group-lb-name.me-name {
+    color: var(--neon);
+}
+.group-lb-pts {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--neon);
+    flex-shrink: 0;
+}
+
+.group-card-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.race-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    margin-top: 8px;
+}
+.race-badge.live {
+    background: rgba(0, 245, 212, 0.1);
+    color: var(--neon);
+    border: 1px solid rgba(0, 245, 212, 0.2);
+}
+.race-badge.won {
+    background: rgba(255, 179, 0, 0.1);
+    color: var(--medium);
+    border: 1px solid rgba(255, 179, 0, 0.2);
+}
+
+.group-member-section {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 10px;
+    overflow: hidden;
+}
+.group-member-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.group-member-header:hover {
+    background: var(--card-hover);
+}
+.group-member-chevron {
+    color: var(--text-muted);
+    font-size: 14px;
+    transition: transform 0.2s;
+}
+.group-member-section:not(.collapsed) .group-member-chevron {
+    transform: rotate(90deg);
+}
+.group-member-tasks {
+    padding: 0 14px 12px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+.group-member-section.collapsed .group-member-tasks {
+    display: none;
+}
+
+.group-task-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-top: 1px solid var(--border);
+}
+
+/* ============================================
    PROFILE
    ============================================ */
 

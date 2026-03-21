@@ -733,6 +733,23 @@ function closeAddTask() {
     document.getElementById("addTaskModal").classList.remove("open");
 }
 
+// Reads live text/date fields from the modal into addForm so re-renders don't lose user input
+function snapshotFormFields(sheet) {
+    const titleEl = sheet.querySelector("#atTitle");
+    const descEl = sheet.querySelector("#atDesc");
+    const deadlineEl = sheet.querySelector("#atDeadline");
+    if (titleEl) addForm.title = titleEl.value;
+    if (descEl) addForm.desc = descEl.value;
+    if (deadlineEl && deadlineEl.value)
+        addForm.deadline = new Date(deadlineEl.value).getTime();
+    if (addForm.customTime) {
+        const h = parseInt(sheet.querySelector("#atCustomHours")?.value) || 0;
+        const m = parseInt(sheet.querySelector("#atCustomMins")?.value) || 0;
+        const total = h * 60 + m;
+        if (total > 0) addForm.timeMins = total;
+    }
+}
+
 function renderAddModal() {
     const sheet = document.getElementById("modalSheet");
     if (addStep === 0) {
@@ -813,6 +830,7 @@ function renderAddModal() {
         // Events — Category
         sheet.querySelectorAll(".cat-chip").forEach((b) =>
             b.addEventListener("click", () => {
+                snapshotFormFields(sheet);
                 addForm.category = b.dataset.cat;
                 renderAddModal();
             }),
@@ -821,6 +839,7 @@ function renderAddModal() {
         // Events — Time (with custom support)
         sheet.querySelectorAll("[data-time]").forEach((b) =>
             b.addEventListener("click", () => {
+                snapshotFormFields(sheet);
                 if (b.dataset.time === "custom") {
                     addForm.isInstant = false;
                     addForm.customTime = true;
@@ -840,6 +859,7 @@ function renderAddModal() {
         // Events — Mode
         sheet.querySelectorAll("[data-mode]").forEach((b) =>
             b.addEventListener("click", () => {
+                snapshotFormFields(sheet);
                 addForm.mode = b.dataset.mode;
                 renderAddModal();
             }),

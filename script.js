@@ -195,31 +195,35 @@ function isSameDay(a, b) {
 }
 
 // ============================================
-// AI SERVICE (Claude API + local fallback)
+// AI SERVICE (OpenAI API + local fallback)
 // ============================================
-const CLAUDE_API_KEY = ""; // PUT YOUR KEY HERE
-const CLAUDE_ENDPOINT = "https://api.anthropic.com/v1/messages";
+const OPENAI_API_KEY =
+    typeof CONFIG !== "undefined" && CONFIG.OPENAI_API_KEY
+        ? CONFIG.OPENAI_API_KEY
+        : "";
+const OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions";
 
 async function aiRateDifficulty(title, desc, timeMins, category) {
-    if (!CLAUDE_API_KEY) return localDifficulty(title, desc, timeMins);
+    if (!OPENAI_API_KEY) return localDifficulty(title, desc, timeMins);
     try {
         const prompt = `You are a task difficulty rater. Rate 1-10.\nTitle: ${title}\nDescription: ${desc}\nTime: ${timeMins} min\nCategory: ${category}\nRespond ONLY with JSON: {"difficulty":<1-10>,"reasoning":"<one sentence>","tips":"<one tip>"}`;
-        const res = await fetch(CLAUDE_ENDPOINT, {
+        const res = await fetch(OPENAI_ENDPOINT, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                "anthropic-version": "2023-06-01",
-                "x-api-key": CLAUDE_API_KEY,
+                Authorization: `Bearer ${OPENAI_API_KEY}`,
             },
             body: JSON.stringify({
-                model: "claude-sonnet-4-20250514",
+                model: "gpt-4o-mini",
                 max_tokens: 200,
                 messages: [{ role: "user", content: prompt }],
             }),
         });
         const data = await res.json();
-        const text = data.content[0].text;
-        const json = JSON.parse(text);
+        if (data.error) throw new Error(data.error.message);
+        const text = data.choices[0].message.content;
+        const clean = text.replace(/```json|```/g, "").trim();
+        const json = JSON.parse(clean);
         return {
             difficulty: Math.max(1, Math.min(10, json.difficulty)),
             reasoning: json.reasoning,

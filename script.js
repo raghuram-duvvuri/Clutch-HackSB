@@ -544,9 +544,7 @@ function showChallengeToast(ch) {
 // AI SERVICE (OpenAI API + local fallback)
 // ============================================
 const OPENAI_API_KEY =
-    typeof CONFIG !== "undefined" && CONFIG.OPENAI_API_KEY
-        ? CONFIG.OPENAI_API_KEY
-        : "";
+    "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";
 const OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions";
 
 async function aiRateDifficulty(title, desc, timeMins, category) {
@@ -1325,7 +1323,6 @@ function renderAddModal() {
           <div class="ai-tip" id="aiTip" style="display:none;"></div>
         </div>
       </div>
-      <div class="manual-row" id="manualRow"></div>
       <div class="points-preview">
         <span style="font-size:15px;color:var(--text-dim);">Points for completion:</span>
         <span class="points-value" id="ptsPreview">+${calcPoints(addForm.difficulty, addForm.timeMins, addForm.deadline, Date.now())}</span>
@@ -1347,20 +1344,6 @@ function renderAddModal() {
                 .catch(() => {});
         }
 
-        // Manual buttons
-        const row = sheet.querySelector("#manualRow");
-        for (let i = 1; i <= 10; i++) {
-            const b = document.createElement("button");
-            b.className =
-                "manual-btn" + (i === addForm.difficulty ? " active" : "");
-            if (i === addForm.difficulty) b.style.background = diffColor(i);
-            b.textContent = i;
-            b.addEventListener("click", () => {
-                addForm.difficulty = i;
-                renderDiffStep();
-            });
-            row.appendChild(b);
-        }
         sheet.querySelector("#atSave").addEventListener("click", saveNewTask);
     }
 }
@@ -1383,12 +1366,6 @@ function renderDiffStep() {
         tip.style.display = "flex";
         tip.innerHTML = "💡 " + esc(addForm.tips);
     }
-    // Update manual buttons
-    sheet.querySelectorAll(".manual-btn").forEach((b, i) => {
-        const lv = i + 1;
-        b.classList.toggle("active", lv === d);
-        b.style.background = lv === d ? diffColor(lv) : "";
-    });
     sheet.querySelector("#ptsPreview").textContent =
         "+" + calcPoints(d, addForm.timeMins, addForm.deadline, Date.now());
 }

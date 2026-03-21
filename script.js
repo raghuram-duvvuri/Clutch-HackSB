@@ -400,6 +400,7 @@ function showApp() {
     document.getElementById("onboarding").classList.remove("active");
     document.getElementById("screen-tasks").classList.add("active");
     document.querySelector(".tab-bar").style.display = "flex";
+    syncLeaderboard();
     renderTasks();
 }
 
@@ -1231,7 +1232,7 @@ function renderDayDetail() {
 // ============================================
 function renderCompete() {
     const tabs = document.getElementById("competeTabs");
-    tabs.innerHTML = ["leaderboard", "groups", "challenges"]
+    tabs.innerHTML = ["leaderboard", "friends", "groups", "challenges"]
         .map(
             (s) =>
                 `<button class="compete-tab${state.competeSection === s ? " active" : ""}" data-sec="${s}">${s.charAt(0).toUpperCase() + s.slice(1)}</button>`,
@@ -1246,64 +1247,91 @@ function renderCompete() {
 
     const content = document.getElementById("competeContent");
     if (state.competeSection === "leaderboard") renderLeaderboard(content);
+    else if (state.competeSection === "friends") renderFriends(content);
     else if (state.competeSection === "groups") renderGroups(content);
     else renderChallenges(content);
 }
 
-function renderLeaderboard(el) {
-    const sim = [
-        { name: "xKraken", emoji: "🦑", pts: 2840 },
-        { name: "StudyGrind", emoji: "📚", pts: 2650 },
-        { name: "TaskSlayer", emoji: "⚔️", pts: 2200 },
-        { name: "NightOwl99", emoji: "🦉", pts: 1980 },
-        { name: "CodeMonkey", emoji: "🐒", pts: 1750 },
-        { name: "FocusBeast", emoji: "🧠", pts: 1620 },
-        { name: "GrindTime", emoji: "⏰", pts: 1400 },
-    ];
-    const weekAgo = Date.now() - 604800000;
-    const userPts = state.tasks
-        .filter((t) => t.completed && !t.flagged && t.completedAt > weekAgo)
-        .reduce((s, t) => s + t.points, 0);
-    const entries = [
-        ...sim,
-        {
+// Leaderboard period toggle state
+let lbPeriod = "weekly"; // "weekly" | "alltime"
+
+async function renderLeaderboard(el) {
+    el.innerHTML = `
+        <div style="display:flex;gap:8px;margin-bottom:16px;">
+            <button class="chip${lbPeriod === "weekly" ? " active" : ""}" id="lbWeekly">This Week</button>
+            <button class="chip${lbPeriod === "alltime" ? " active" : ""}" id="lbAllTime">All Time</button>
+        </div>
+        <div id="lbBody"><div style="text-align:center;padding:30px 0;"><div class="spinner"></div><div style="margin-top:8px;font-size:13px;color:var(--text-dim);">Loading leaderboard...</div></div></div>`;
+
+    el.querySelector("#lbWeekly").addEventListener("click", () => {
+        lbPeriod = "weekly";
+        renderLeaderboard(el);
+    });
+    el.querySelector("#lbAllTime").addEventListener("click", () => {
+        lbPeriod = "alltime";
+        renderLeaderboard(el);
+    });
+
+    try {
+        const snap = await db.ref("leaderboard").once("value");
+        const raw = snap.val() || {};
+        const myId = getMyId();
+
+        // Ensure our own entry is always included
+        const weekAgo = Date.now() - 604800000;
+        const myWeekly = state.tasks
+            .filter((t) => t.completed && !t.flagged && t.completedAt > weekAgo)
+            .reduce((s, t) => s + t.points, 0);
+        raw[myId] = {
+            id: myId,
             name: state.profile.name,
             emoji: state.profile.emoji,
-            pts: userPts,
-            me: true,
-        },
-    ]
-        .sort((a, b) => b.pts - a.pts)
-        .map((e, i) => ({ ...e, rank: i + 1 }));
+            weeklyPts: myWeekly,
+            allTimePts: state.profile.totalPoints || 0,
+            updatedAt: Date.now(),
+        };
 
-    const top3 = entries.slice(0, 3);
-    const rest = entries.slice(3);
+        const ptsKey = lbPeriod === "weekly" ? "weeklyPts" : "allTimePts";
+        const entries = Object.values(raw)
+            .sort((a, b) => (b[ptsKey] || 0) - (a[ptsKey] || 0))
+            .map((e, i) => ({ ...e, rank: i + 1, me: e.id === myId }));
 
-    let html = `<div class="podium">
-    ${[1, 0, 2]
-        .map((i) => {
-            const e = top3[i];
-            if (!e) return "";
-            const medals = ["🥇", "🥈", "🥉"];
-            const heights = ["podium-2", "podium-1", "podium-3"];
-            return `<div class="podium-card ${heights[i]}${e.me ? " me" : ""}">
-        <div class="podium-medal">${medals[i]}</div>
-        <div class="podium-emoji">${e.emoji}</div>
-        <div class="podium-name${e.me ? " me-name" : ""}">${esc(e.name)}</div>
-        <div class="podium-pts">${e.pts}</div>
-      </div>`;
-        })
-        .join("")}</div>`;
+        const top3 = entries.slice(0, 3);
+        const rest = entries.slice(3);
+        const medals = ["🥇", "🥈", "🥉"];
+        const heights = ["podium-2", "podium-1", "podium-3"];
 
-    rest.forEach((e) => {
-        html += `<div class="lb-row${e.me ? " me" : ""}">
-      <span class="lb-rank">#${e.rank}</span>
-      <span class="lb-emoji">${e.emoji}</span>
-      <span class="lb-name${e.me ? " me-name" : ""}">${esc(e.name)}</span>
-      <span class="lb-pts">${e.pts} pts</span>
-    </div>`;
-    });
-    el.innerHTML = html;
+        let html = `<div class="podium">
+        ${[1, 0, 2]
+            .map((i) => {
+                const e = top3[i];
+                if (!e) return "";
+                return `<div class="podium-card ${heights[i]}${e.me ? " me" : ""}">
+                <div class="podium-medal">${medals[i]}</div>
+                <div class="podium-emoji">${e.emoji}</div>
+                <div class="podium-name${e.me ? " me-name" : ""}">${esc(e.name)}</div>
+                <div class="podium-pts">${e[ptsKey] || 0}</div>
+            </div>`;
+            })
+            .join("")}</div>`;
+
+        rest.forEach((e) => {
+            html += `<div class="lb-row${e.me ? " me" : ""}">
+                <span class="lb-rank">#${e.rank}</span>
+                <span class="lb-emoji">${e.emoji}</span>
+                <span class="lb-name${e.me ? " me-name" : ""}">${esc(e.name)}${e.me ? " (you)" : ""}</span>
+                <span class="lb-pts">${e[ptsKey] || 0} pts</span>
+            </div>`;
+        });
+
+        if (!entries.length)
+            html = `<div class="empty-state" style="padding:30px 0;"><div class="emoji">🏆</div><h3>No scores yet</h3><p>Complete tasks to appear here</p></div>`;
+
+        el.querySelector("#lbBody").innerHTML = html;
+    } catch (err) {
+        el.querySelector("#lbBody").innerHTML =
+            `<div style="text-align:center;color:var(--danger);padding:20px;">Failed to load leaderboard</div>`;
+    }
 }
 
 // ============================================
@@ -1355,6 +1383,26 @@ function syncMyTasksToFirebase() {
         db.ref(`groups/${code}/members/${myId}`).set(myInfo);
         db.ref(`groups/${code}/memberTasks/${myId}`).set(myTasks);
     });
+
+    // Sync to global leaderboard
+    syncLeaderboard();
+}
+
+function syncLeaderboard() {
+    const myId = getMyId();
+    const weekAgo = Date.now() - 604800000;
+    const weeklyPts = state.tasks
+        .filter((t) => t.completed && !t.flagged && t.completedAt > weekAgo)
+        .reduce((s, t) => s + t.points, 0);
+    const allTimePts = state.profile.totalPoints || 0;
+    db.ref(`leaderboard/${myId}`).set({
+        id: myId,
+        name: state.profile.name,
+        emoji: state.profile.emoji,
+        weeklyPts,
+        allTimePts,
+        updatedAt: Date.now(),
+    });
 }
 
 function getMemberPoints(memberTasks) {
@@ -1385,6 +1433,245 @@ function stopListeningToGroup(code) {
     if (groupListeners[code]) {
         groupListeners[code].off();
         delete groupListeners[code];
+    }
+}
+
+// ============================================
+// FRIENDS SYSTEM
+// ============================================
+async function renderFriends(el) {
+    const myId = getMyId();
+    el.innerHTML = `<div style="text-align:center;padding:30px 0;"><div class="spinner"></div></div>`;
+
+    try {
+        // Load incoming requests, outgoing requests, and friends list
+        const [friendsSnap, inSnap, outSnap] = await Promise.all([
+            db.ref(`friends/${myId}/list`).once("value"),
+            db.ref(`friends/${myId}/incoming`).once("value"),
+            db.ref(`friends/${myId}/outgoing`).once("value"),
+        ]);
+
+        const friendsList = friendsSnap.val() || {};
+        const incoming = inSnap.val() || {};
+        const outgoing = outSnap.val() || {};
+
+        let html = "";
+
+        // My friend code / add friend section
+        html += `<div class="friend-code-card">
+            <div style="font-size:12px;color:var(--text-muted);font-weight:700;letter-spacing:1px;margin-bottom:6px;">YOUR FRIEND CODE</div>
+            <div class="friend-code-display" onclick="navigator.clipboard.writeText('${myId}');this.textContent='Copied!';setTimeout(()=>this.textContent='${myId.slice(0, 8)}...',1200);">${myId.slice(0, 8)}...</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Tap to copy full code</div>
+        </div>
+        <button class="btn-primary" style="margin-bottom:16px;" onclick="openAddFriendModal()">+ Add Friend</button>`;
+
+        // Incoming requests
+        const inArr = Object.values(incoming);
+        if (inArr.length) {
+            html += `<div class="friends-section-label">📬 Friend Requests (${inArr.length})</div>`;
+            inArr.forEach((req) => {
+                html += `<div class="friend-request-row">
+                    <span style="font-size:22px;">${req.emoji || "⚡"}</span>
+                    <div style="flex:1;">
+                        <div style="font-size:14px;font-weight:700;">${esc(req.name)}</div>
+                        <div style="font-size:11px;color:var(--text-muted);">wants to be your friend</div>
+                    </div>
+                    <button class="btn-accept" onclick="acceptFriend('${req.id}','${esc(req.name)}','${req.emoji || "⚡"}')">✓</button>
+                    <button class="btn-decline" onclick="declineFriend('${req.id}')">✗</button>
+                </div>`;
+            });
+        }
+
+        // Outgoing requests
+        const outArr = Object.values(outgoing);
+        if (outArr.length) {
+            html += `<div class="friends-section-label">⏳ Pending</div>`;
+            outArr.forEach((req) => {
+                html += `<div class="friend-request-row">
+                    <span style="font-size:22px;">${req.emoji || "⚡"}</span>
+                    <div style="flex:1;">
+                        <div style="font-size:14px;font-weight:700;">${esc(req.name)}</div>
+                        <div style="font-size:11px;color:var(--text-muted);">Request sent</div>
+                    </div>
+                    <button class="btn-decline" onclick="cancelFriendRequest('${req.id}')">Cancel</button>
+                </div>`;
+            });
+        }
+
+        // Friends list
+        const friendsArr = Object.values(friendsList);
+        if (friendsArr.length) {
+            html += `<div class="friends-section-label">👥 Friends (${friendsArr.length})</div>`;
+            // Fetch their leaderboard stats
+            for (const f of friendsArr) {
+                let fPts = { weeklyPts: "—", allTimePts: "—" };
+                try {
+                    const fSnap = await db
+                        .ref(`leaderboard/${f.id}`)
+                        .once("value");
+                    if (fSnap.val()) fPts = fSnap.val();
+                } catch (e) {}
+                html += `<div class="friend-row">
+                    <span style="font-size:26px;">${f.emoji || "⚡"}</span>
+                    <div style="flex:1;">
+                        <div style="font-size:14px;font-weight:700;">${esc(f.name)}</div>
+                        <div style="font-size:11px;color:var(--text-dim);">Week: <span style="color:var(--neon);font-family:var(--mono);">${fPts.weeklyPts}</span> pts &nbsp;·&nbsp; Total: <span style="color:var(--accent-light);font-family:var(--mono);">${fPts.allTimePts}</span> pts</div>
+                    </div>
+                    <button class="btn-remove-friend" onclick="removeFriend('${f.id}')">✗</button>
+                </div>`;
+            }
+        } else if (!inArr.length) {
+            html += `<div class="empty-state" style="padding:24px 0;">
+                <div class="emoji">🤝</div>
+                <h3>No friends yet</h3>
+                <p>Share your code or add someone else's</p>
+            </div>`;
+        }
+
+        el.innerHTML = html;
+    } catch (err) {
+        el.innerHTML = `<div style="color:var(--danger);text-align:center;padding:20px;">Failed to load friends</div>`;
+    }
+}
+
+function openAddFriendModal() {
+    const modal = document.getElementById("addTaskModal");
+    const sheet = document.getElementById("modalSheet");
+    sheet.innerHTML = `
+        <div class="modal-header"><h2>Add Friend</h2><button class="modal-close" onclick="closeAddTask()">×</button></div>
+        <div class="form-group">
+            <label class="form-label">Enter their Friend Code</label>
+            <input class="input-field" id="afCode" placeholder="Paste their full code" style="font-family:var(--mono);font-size:12px;" autocomplete="off">
+        </div>
+        <div id="afError" style="color:var(--danger);font-size:13px;text-align:center;display:none;margin-bottom:12px;"></div>
+        <div id="afPreview" style="display:none;margin-bottom:16px;"></div>
+        <button class="btn-primary" id="afSubmit">Send Request</button>`;
+
+    const input = sheet.querySelector("#afCode");
+    const errorEl = sheet.querySelector("#afError");
+    const previewEl = sheet.querySelector("#afPreview");
+    let foundUser = null;
+
+    input.addEventListener("input", async () => {
+        const code = input.value.trim();
+        errorEl.style.display = "none";
+        previewEl.style.display = "none";
+        foundUser = null;
+        if (code.length < 10) return;
+
+        const myId = getMyId();
+        if (code === myId) {
+            errorEl.textContent = "That's your own code!";
+            errorEl.style.display = "block";
+            return;
+        }
+        try {
+            const snap = await db.ref(`leaderboard/${code}`).once("value");
+            const user = snap.val();
+            if (!user) {
+                errorEl.textContent = "No user found with this code";
+                errorEl.style.display = "block";
+                return;
+            }
+            foundUser = user;
+            previewEl.style.display = "block";
+            previewEl.innerHTML = `<div class="glow-card" style="text-align:center;">
+                <div style="font-size:32px;">${user.emoji || "⚡"}</div>
+                <div style="font-size:16px;font-weight:800;margin-top:4px;">${esc(user.name)}</div>
+                <div style="font-size:12px;color:var(--text-dim);margin-top:2px;">${user.weeklyPts || 0} pts this week</div>
+            </div>`;
+        } catch (e) {
+            errorEl.textContent = "Error looking up user";
+            errorEl.style.display = "block";
+        }
+    });
+
+    sheet.querySelector("#afSubmit").addEventListener("click", async () => {
+        if (!foundUser) {
+            errorEl.textContent = "Enter a valid friend code first";
+            errorEl.style.display = "block";
+            return;
+        }
+        const myId = getMyId();
+        try {
+            // Send request to their incoming, log in our outgoing
+            await db.ref(`friends/${foundUser.id}/incoming/${myId}`).set({
+                id: myId,
+                name: state.profile.name,
+                emoji: state.profile.emoji,
+                sentAt: Date.now(),
+            });
+            await db.ref(`friends/${myId}/outgoing/${foundUser.id}`).set({
+                id: foundUser.id,
+                name: foundUser.name,
+                emoji: foundUser.emoji || "⚡",
+                sentAt: Date.now(),
+            });
+            closeAddTask();
+            renderCompete();
+        } catch (err) {
+            errorEl.textContent = "Failed to send request: " + err.message;
+            errorEl.style.display = "block";
+        }
+    });
+
+    modal.classList.add("open");
+}
+
+async function acceptFriend(theirId, theirName, theirEmoji) {
+    const myId = getMyId();
+    try {
+        // Add to both friend lists
+        await db
+            .ref(`friends/${myId}/list/${theirId}`)
+            .set({ id: theirId, name: theirName, emoji: theirEmoji });
+        await db
+            .ref(`friends/${theirId}/list/${myId}`)
+            .set({
+                id: myId,
+                name: state.profile.name,
+                emoji: state.profile.emoji,
+            });
+        // Clean up request nodes
+        await db.ref(`friends/${myId}/incoming/${theirId}`).remove();
+        await db.ref(`friends/${theirId}/outgoing/${myId}`).remove();
+        renderCompete();
+    } catch (err) {
+        alert("Failed to accept: " + err.message);
+    }
+}
+
+async function declineFriend(theirId) {
+    const myId = getMyId();
+    try {
+        await db.ref(`friends/${myId}/incoming/${theirId}`).remove();
+        await db.ref(`friends/${theirId}/outgoing/${myId}`).remove();
+        renderCompete();
+    } catch (err) {
+        alert("Failed to decline: " + err.message);
+    }
+}
+
+async function cancelFriendRequest(theirId) {
+    const myId = getMyId();
+    try {
+        await db.ref(`friends/${myId}/outgoing/${theirId}`).remove();
+        await db.ref(`friends/${theirId}/incoming/${myId}`).remove();
+        renderCompete();
+    } catch (err) {
+        alert("Failed to cancel: " + err.message);
+    }
+}
+
+async function removeFriend(theirId) {
+    if (!confirm("Remove this friend?")) return;
+    const myId = getMyId();
+    try {
+        await db.ref(`friends/${myId}/list/${theirId}`).remove();
+        await db.ref(`friends/${theirId}/list/${myId}`).remove();
+        renderCompete();
+    } catch (err) {
+        alert("Failed to remove: " + err.message);
     }
 }
 

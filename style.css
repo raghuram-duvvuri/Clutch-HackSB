@@ -1710,3 +1710,105 @@ textarea.input-field {
 .btn-complete-dim {
     opacity: 0.5;
 }
+
+/* ============================================
+   FRIENDS SYSTEM
+   ============================================ */
+.friend-code-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    text-align: center;
+    margin-bottom: 12px;
+}
+.friend-code-display {
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--accent-light);
+    cursor: pointer;
+    padding: 6px 12px;
+    background: rgba(108, 92, 231, 0.1);
+    border-radius: 8px;
+    display: inline-block;
+    margin-top: 4px;
+    transition: background 0.15s;
+}
+.friend-code-display:active {
+    background: rgba(108, 92, 231, 0.25);
+}
+
+.friends-section-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin: 16px 0 8px;
+}
+
+.friend-request-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+    margin-bottom: 8px;
+}
+.friend-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+    margin-bottom: 8px;
+}
+
+.btn-accept {
+    background: rgba(46, 213, 115, 0.15);
+    border: 1px solid rgba(46, 213, 115, 0.35);
+    color: var(--success);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.btn-accept:active {
+    background: rgba(46, 213, 115, 0.3);
+}
+
+.btn-decline {
+    background: rgba(255, 71, 87, 0.1);
+    border: 1px solid rgba(255, 71, 87, 0.2);
+    color: var(--danger);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.btn-decline:active {
+    background: rgba(255, 71, 87, 0.2);
+}
+
+.btn-remove-friend {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: color 0.15s;
+}
+.btn-remove-friend:active {
+    color: var(--danger);
+}

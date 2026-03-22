@@ -543,8 +543,9 @@ function showChallengeToast(ch) {
 // ============================================
 // AI SERVICE (OpenAI API + local fallback)
 // ============================================
-const OPENAI_API_KEY =
-    "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";
+// const OPENAI_API_KEY =
+//     "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";
+const OPENAI_API_KEY = "";
 const OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions";
 
 async function aiRateDifficulty(title, desc, timeMins, category) {
